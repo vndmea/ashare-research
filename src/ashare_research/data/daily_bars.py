@@ -28,6 +28,8 @@ OPTIONAL_DAILY_BAR_COLUMNS = {
     "limit_down",
     "tradable",
     "st_status",
+    "industry",
+    "sector",
 }
 
 BOOLEAN_DAILY_BAR_COLUMNS = {
@@ -107,6 +109,9 @@ def coerce_daily_bar_types(bars: pd.DataFrame) -> pd.DataFrame:
 
     if "st_status" in data.columns:
         data["st_status"] = data["st_status"].astype("string").fillna("")
+
+    for column in {"industry", "sector"}.intersection(data.columns):
+        data[column] = data[column].astype("string").fillna("")
 
     return data
 

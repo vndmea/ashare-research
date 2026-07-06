@@ -8,7 +8,7 @@ from ashare_research.data.adjustments import (
     load_adjustment_factors,
     merge_adjustment_factors,
 )
-from ashare_research.data.daily_bars import load_daily_bars
+from ashare_research.data.daily_bars import coerce_daily_bar_types, load_daily_bars
 
 
 def test_forward_adjustment_uses_latest_factor() -> None:
@@ -67,6 +67,16 @@ def test_load_adjustment_factors_rejects_invalid_factor(tmp_path) -> None:
 
     with pytest.raises(ValueError, match="must be positive"):
         load_adjustment_factors(factors_path)
+
+
+def test_coerce_daily_bars_preserves_industry_and_sector_columns() -> None:
+    bars = _bars().assign(industry="Bank", sector="Financials")
+
+    coerced = coerce_daily_bar_types(bars)
+
+    assert "industry" in coerced.columns
+    assert "sector" in coerced.columns
+    assert coerced["industry"].tolist() == ["Bank", "Bank", "Bank"]
 
 
 def _bars() -> pd.DataFrame:

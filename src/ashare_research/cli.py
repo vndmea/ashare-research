@@ -76,11 +76,13 @@ def run_backtest() -> None:
             result.equity_curve,
             result.positions,
             result.metrics,
+            bars=bars,
             benchmark_returns=benchmark_returns,
         )
         print(f"summary_report: {report_paths.summary}")
         print(f"equity_curve_report: {report_paths.equity_curve}")
         print(f"monthly_returns_report: {report_paths.monthly_returns}")
+        print(f"industry_exposure_report: {report_paths.industry_exposure}")
         print(f"positions_report: {report_paths.positions}")
 
 

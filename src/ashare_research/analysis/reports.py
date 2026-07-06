@@ -18,6 +18,7 @@ class ReportPaths:
     drawdowns: Path
     rolling_metrics: Path
     monthly_returns: Path
+    industry_exposure: Path
     positions: Path
 
 
@@ -116,14 +117,37 @@ def build_monthly_returns(
     return monthly
 
 
+def build_industry_exposure_report(
+    positions: pd.DataFrame,
+    bars: pd.DataFrame,
+) -> pd.DataFrame:
+    """Build daily industry or sector exposure from position weights."""
+    if positions.empty:
+        return pd.DataFrame(columns=["date", "group_name", "exposure"])
+
+    group_column = _group_column(bars)
+    if group_column is None:
+        return pd.DataFrame(columns=["date", "group_name", "exposure"])
+
+    exposure = positions.merge(
+        bars[["date", "symbol", group_column]].drop_duplicates(),
+        on=["date", "symbol"],
+        how="left",
+    )
+    exposure["group_name"] = exposure[group_column].fillna("").replace("", "Unclassified")
+    report = exposure.groupby(["date", "group_name"], as_index=False).agg(exposure=("weight", "sum"))
+    return report.sort_values(["date", "exposure", "group_name"], ascending=[True, False, True]).reset_index(drop=True)
+
+
 def write_research_report(
     output_dir: str | Path,
     equity_curve: pd.DataFrame,
     positions: pd.DataFrame,
     metrics: PerformanceMetrics,
+    bars: pd.DataFrame | None = None,
     benchmark_returns: pd.DataFrame | None = None,
 ) -> ReportPaths:
-    """Write summary, equity, drawdown, rolling, monthly, and position CSV reports."""
+    """Write summary, equity, drawdown, rolling, monthly, exposure, and position CSV reports."""
     report_dir = Path(output_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -132,6 +156,7 @@ def write_research_report(
     drawdowns_path = report_dir / "drawdowns.csv"
     rolling_metrics_path = report_dir / "rolling_metrics.csv"
     monthly_returns_path = report_dir / "monthly_returns.csv"
+    industry_exposure_path = report_dir / "industry_exposure.csv"
     positions_path = report_dir / "positions.csv"
 
     pd.DataFrame([metrics.to_dict()]).to_csv(summary_path, index=False)
@@ -145,6 +170,10 @@ def write_research_report(
         index=False,
     )
     build_monthly_returns(equity_curve, benchmark_returns).to_csv(monthly_returns_path, index=False)
+    build_industry_exposure_report(positions, bars if bars is not None else pd.DataFrame()).to_csv(
+        industry_exposure_path,
+        index=False,
+    )
     positions.to_csv(positions_path, index=False)
 
     return ReportPaths(
@@ -153,6 +182,7 @@ def write_research_report(
         drawdowns=drawdowns_path,
         rolling_metrics=rolling_metrics_path,
         monthly_returns=monthly_returns_path,
+        industry_exposure=industry_exposure_path,
         positions=positions_path,
     )
 
@@ -178,3 +208,10 @@ def _rolling_sharpe(
     annualized_mean = returns.fillna(0.0).rolling(window).mean() * 252
     sharpe = annualized_mean.div(volatility.replace(0.0, np.nan))
     return sharpe.replace([np.inf, -np.inf], np.nan)
+
+
+def _group_column(bars: pd.DataFrame) -> str | None:
+    for column in ["industry", "sector"]:
+        if column in bars.columns:
+            return column
+    return None

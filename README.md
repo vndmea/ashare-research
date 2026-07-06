@@ -98,6 +98,7 @@ Optional columns supported by the backtest:
 - `limit_down`: blocks sells when `block_limit_down_sells` is enabled.
 - `tradable`: excludes rows marked non-tradable.
 - `st_status`: excludes ST rows when `exclude_st` is enabled.
+- `industry` or `sector`: optional group labels used for exposure reporting.
 
 ## Price Adjustment
 
@@ -147,6 +148,7 @@ The CLI writes CSV files under `reports/example_run/` by default:
 - `drawdowns.csv`: daily peak equity, drawdown depth, and consecutive underwater days.
 - `rolling_metrics.csv`: rolling return, volatility, Sharpe, and benchmark-relative diagnostics.
 - `monthly_returns.csv`: strategy, benchmark, and excess monthly returns.
+- `industry_exposure.csv`: daily grouped exposure by `industry` or `sector` when those columns are available.
 - `positions.csv`: daily target weights selected by the strategy.
 
 The equity curve also includes `gross_exposure` and `cash_weight` so blocked trades and uninvested capital are visible.

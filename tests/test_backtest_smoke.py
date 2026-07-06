@@ -4,6 +4,7 @@ import pandas as pd
 
 from ashare_research.analysis.reports import (
     build_drawdown_report,
+    build_industry_exposure_report,
     build_monthly_returns,
     build_rolling_metrics,
     write_research_report,
@@ -74,9 +75,16 @@ def test_report_exports(tmp_path) -> None:
     )
     positions = pd.DataFrame(
         {
-            "date": [pd.Timestamp("2024-01-01")],
-            "symbol": ["000001.SZ"],
-            "weight": [1.0],
+            "date": [pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-01")],
+            "symbol": ["000001.SZ", "600000.SH"],
+            "weight": [0.4, 0.6],
+        }
+    )
+    bars = pd.DataFrame(
+        {
+            "date": [pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-01")],
+            "symbol": ["000001.SZ", "600000.SH"],
+            "industry": ["Bank", "Broker"],
         }
     )
     result = run_close_to_close_backtest(
@@ -103,24 +111,29 @@ def test_report_exports(tmp_path) -> None:
     monthly_returns = build_monthly_returns(equity_curve, benchmark_returns)
     drawdowns = build_drawdown_report(equity_curve)
     rolling_metrics = build_rolling_metrics(equity_curve, benchmark_returns, windows=(2,))
+    industry_exposure = build_industry_exposure_report(positions, bars)
     paths = write_research_report(
         tmp_path,
         equity_curve,
         positions,
         result.metrics,
+        bars=bars,
         benchmark_returns=benchmark_returns,
     )
 
     assert not monthly_returns.empty
     assert not drawdowns.empty
     assert not rolling_metrics.empty
+    assert not industry_exposure.empty
     assert "rolling_2d_return" in rolling_metrics.columns
+    assert industry_exposure["group_name"].tolist() == ["Broker", "Bank"]
     assert drawdowns["drawdown"].min() <= 0.0
     assert paths.summary.exists()
     assert paths.equity_curve.exists()
     assert paths.drawdowns.exists()
     assert paths.rolling_metrics.exists()
     assert paths.monthly_returns.exists()
+    assert paths.industry_exposure.exists()
     assert paths.positions.exists()
 
 

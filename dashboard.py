@@ -52,8 +52,8 @@ def main() -> None:
 
     _render_metrics(report["summary"])
 
-    tab_equity, tab_risk, tab_monthly, tab_positions, tab_files = st.tabs(
-        ["Equity", "Risk", "Monthly", "Positions", "Files"]
+    tab_equity, tab_risk, tab_monthly, tab_positions, tab_exposure, tab_files = st.tabs(
+        ["Equity", "Risk", "Monthly", "Positions", "Exposure", "Files"]
     )
 
     with tab_equity:
@@ -67,6 +67,9 @@ def main() -> None:
 
     with tab_positions:
         _render_positions_section(report["positions"])
+
+    with tab_exposure:
+        _render_exposure_section(report["industry_exposure"])
 
     with tab_files:
         _render_files_section(report["paths"])
@@ -116,6 +119,7 @@ def _run_example_backtest(config_path: str, output_dir: str) -> str:
         result.equity_curve,
         result.positions,
         result.metrics,
+        bars=bars,
         benchmark_returns=benchmark_returns,
     )
     return output_dir
@@ -164,6 +168,7 @@ def _load_report_bundle(output_dir: str) -> dict[str, Any] | None:
     drawdowns_path = report_dir / "drawdowns.csv"
     rolling_metrics_path = report_dir / "rolling_metrics.csv"
     monthly_path = report_dir / "monthly_returns.csv"
+    industry_exposure_path = report_dir / "industry_exposure.csv"
     positions_path = report_dir / "positions.csv"
 
     if not summary_path.exists() or not equity_path.exists():
@@ -180,6 +185,11 @@ def _load_report_bundle(output_dir: str) -> dict[str, Any] | None:
         else pd.DataFrame()
     )
     monthly_returns = pd.read_csv(monthly_path) if monthly_path.exists() else pd.DataFrame()
+    industry_exposure = (
+        pd.read_csv(industry_exposure_path, parse_dates=["date"])
+        if industry_exposure_path.exists()
+        else pd.DataFrame()
+    )
     positions = (
         pd.read_csv(positions_path, parse_dates=["date"])
         if positions_path.exists()
@@ -192,6 +202,7 @@ def _load_report_bundle(output_dir: str) -> dict[str, Any] | None:
         "drawdowns": drawdowns,
         "rolling_metrics": rolling_metrics,
         "monthly_returns": monthly_returns,
+        "industry_exposure": industry_exposure,
         "positions": positions,
         "paths": {
             "summary": summary_path,
@@ -199,6 +210,7 @@ def _load_report_bundle(output_dir: str) -> dict[str, Any] | None:
             "drawdowns": drawdowns_path,
             "rolling_metrics": rolling_metrics_path,
             "monthly_returns": monthly_path,
+            "industry_exposure": industry_exposure_path,
             "positions": positions_path,
         },
     }
@@ -357,6 +369,19 @@ def _render_positions_section(positions: pd.DataFrame) -> None:
     )
     st.subheader(f"Latest Positions: {latest_date:%Y-%m-%d}")
     st.dataframe(latest_positions, use_container_width=True, hide_index=True)
+
+
+def _render_exposure_section(industry_exposure: pd.DataFrame) -> None:
+    if industry_exposure.empty:
+        st.info("No industry or sector exposure data available.")
+        return
+
+    latest_date = industry_exposure["date"].max()
+    latest_exposure = industry_exposure.loc[industry_exposure["date"] == latest_date].copy()
+    latest_exposure = latest_exposure.sort_values("exposure", ascending=False)
+    st.subheader(f"Latest Exposure: {latest_date:%Y-%m-%d}")
+    st.bar_chart(latest_exposure.set_index("group_name")[["exposure"]])
+    st.dataframe(latest_exposure, use_container_width=True, hide_index=True)
 
 
 def _render_files_section(paths: dict[str, Path]) -> None:
