@@ -101,6 +101,11 @@ def _run_example_backtest(config_path: str, output_dir: str) -> str:
         commission_rate=float(config["backtest"].get("commission_rate", 0.0003)),
         stamp_tax_rate=float(config["backtest"].get("stamp_tax_rate", 0.0005)),
         max_names=int(config["backtest"].get("max_names", 20)),
+        position_sizing_method=str(
+            config["backtest"].get("position_sizing_method", "equal_weight")
+        ),
+        rebalance_frequency=str(config["backtest"].get("rebalance_frequency", "daily")),
+        min_holding_days=int(config["backtest"].get("min_holding_days", 0)),
         benchmark_returns=benchmark_returns,
         trading_calendar=trading_calendar,
         universe=universe,
@@ -277,6 +282,10 @@ def _render_equity_section(
     if exposure_columns:
         st.subheader("Exposure")
         st.line_chart(chart.set_index("date")[exposure_columns])
+
+    if "is_rebalance_day" in chart.columns:
+        st.subheader("Rebalance Schedule")
+        st.bar_chart(chart.set_index("date")[["is_rebalance_day"]])
 
     if not drawdowns.empty:
         st.subheader("Drawdown")

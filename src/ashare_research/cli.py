@@ -54,6 +54,11 @@ def run_backtest() -> None:
         commission_rate=float(config["backtest"].get("commission_rate", 0.0003)),
         stamp_tax_rate=float(config["backtest"].get("stamp_tax_rate", 0.0005)),
         max_names=int(config["backtest"].get("max_names", 20)),
+        position_sizing_method=str(
+            config["backtest"].get("position_sizing_method", "equal_weight")
+        ),
+        rebalance_frequency=str(config["backtest"].get("rebalance_frequency", "daily")),
+        min_holding_days=int(config["backtest"].get("min_holding_days", 0)),
         benchmark_returns=benchmark_returns,
         trading_calendar=trading_calendar,
         universe=universe,

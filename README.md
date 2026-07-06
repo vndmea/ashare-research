@@ -143,6 +143,7 @@ The CLI writes CSV files under `reports/example_run/` by default:
 
 - `summary.csv`: total return, annual return, volatility, Sharpe ratio, drawdown, turnover, and benchmark-relative metrics.
 - `equity_curve.csv`: daily strategy equity, returns, costs, turnover, and benchmark returns.
+  It also includes `is_rebalance_day` so scheduled portfolio updates are visible.
 - `drawdowns.csv`: daily peak equity, drawdown depth, and consecutive underwater days.
 - `rolling_metrics.csv`: rolling return, volatility, Sharpe, and benchmark-relative diagnostics.
 - `monthly_returns.csv`: strategy, benchmark, and excess monthly returns.
@@ -159,12 +160,19 @@ The equity curve also includes `gross_exposure` and `cash_weight` so blocked tra
 - `block_limit_up_buys`: prevent buying stocks marked `limit_up`.
 - `block_limit_down_sells`: prevent selling stocks marked `limit_down`.
 - `min_amount`: require minimum daily turnover when `amount` is present.
+- `position_sizing_method`: choose `equal_weight` or `signal_weight`.
+- `rebalance_frequency`: choose `daily`, `weekly`, or `monthly`.
+- `min_holding_days`: keep a position for at least this many trading days before reducing it.
 - `trading_calendar_path`: optional date list used to align portfolio returns.
 - `universe_path`: optional daily date/symbol universe snapshot to reduce survivorship bias.
 
 ## Important Backtest Assumptions
 
 - Signals are shifted by one row per symbol to avoid same-close look-ahead bias.
+- When `max_names` is binding, the scaffold keeps the strongest positive signals first.
+- `signal_weight` sizing uses the strongest selected signals to allocate larger target weights.
+- `weekly` and `monthly` rebalancing keep prior target weights between scheduled rebalance days.
+- `min_holding_days` can delay exits even on scheduled rebalance days.
 - The example engine applies target weights at each close and earns next-day close returns.
 - Costs include commission on turnover and stamp tax on sell turnover.
 - Benchmark returns are aligned to the same close-to-next-close date convention.

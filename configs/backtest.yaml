@@ -13,6 +13,9 @@ backtest:
   commission_rate: 0.0003
   stamp_tax_rate: 0.0005
   max_names: 20
+  position_sizing_method: equal_weight
+  rebalance_frequency: daily
+  min_holding_days: 0
   exclude_suspended: true
   exclude_st: true
   block_limit_up_buys: true
