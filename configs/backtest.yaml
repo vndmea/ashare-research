@@ -1,0 +1,28 @@
+data:
+  daily_bar_path: data/raw/daily_bars.csv
+  benchmark_path: data/raw/benchmark.csv
+  trading_calendar_path: data/raw/trading_calendar.csv
+  universe_path: data/raw/universe.csv
+  adjustment_factor_path:
+  price_adjustment: none
+
+backtest:
+  start_date: "2020-01-01"
+  end_date: "2024-12-31"
+  initial_cash: 1000000
+  commission_rate: 0.0003
+  stamp_tax_rate: 0.0005
+  max_names: 20
+  exclude_suspended: true
+  exclude_st: true
+  block_limit_up_buys: true
+  block_limit_down_sells: true
+  min_amount: 0
+
+strategy:
+  name: moving_average_crossover
+  fast_window: 20
+  slow_window: 60
+
+report:
+  output_dir: reports/example_run
