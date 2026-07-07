@@ -20,6 +20,19 @@
 - 阶段 2 的第一项已经开始落地：项目内已新增 `src/ashare_research/contracts/schemas.py` 作为官方数据契约真源。
 - 当前 contracts 已覆盖 source datasets 与 runtime/report datasets，并记录字段、主键、语义、生产模块、消费模块。
 - `src/ashare_research/data/daily_bars.py`、`benchmarks.py`、`calendar.py`、`universe.py` 已开始引用 contracts 层，说明数据治理正在从“文档约定”转向“代码约束”。
+- 项目现已具备独立的数据预检命令：`ashare-validate-data --config configs/backtest.yaml`，并且该命令复用正式研究流水线的 loader 与 contracts 校验逻辑，不是第二套实现。
+- 当前 README 已形成最小真实数据接入链路示例：`download_guidebee_data.py -> ashare-validate-data -> ashare-run-backtest`。
+- `load_research_inputs()` 现在还承担跨表输入对齐校验，会在回测前检查 `bars / trading_calendar / benchmark_returns / universe` 的日期与股票池是否一致。
+- 当前项目已经把执行层从“只输出净值和持仓”升级到“净值 + 持仓 + execution_diagnostics + trade_ledger”统一产物链。
+- `BacktestConfig` 已补入 `slippage_rate` 和 `max_volume_participation`，阶段 3 的滑点与容量约束已经进入统一回测主流程。
+- `StrategyConfig` 已从均线专用字段升级为通用 `parameters` 结构，策略注册表也已补入默认参数与描述元信息。
+- 新增 `relative_strength` 策略和 `configs/relative_strength.yaml`，说明当前架构已经通过第二策略样本做过结构验证。
+- `experiments/sweep.py` 已支持通用参数网格扫描，并写出 `parameter_sweep.csv` 与 `parameter_sweep_manifest.json`，实验复现链条不再依赖单一策略字段。
+- 中文看板已接入 `strategy_attribution`、`execution_diagnostics` 和 `trade_ledger`，展示层继续复用统一报表而非本地重算。
+- 新增 `data/manifest.py`，并将样例数据生成与 Guidebee 下载统一落盘 `dataset_manifest.json`，数据来源、日期范围和字段列表开始可追溯。
+- 新增 `governance.md`，把字段契约变更流程、模块边界、数据版本追溯和指标分层显式写出来，后续不再只靠口头约束。
+- 研究诊断已扩展到持仓贡献、换手拆解和成本拆解，阶段 5 的可编码部分已经落地到报表和看板。
+- 看板新增实验结果对比视图，参数扫描结果可以在浏览器中直接排序和查看 manifest。
 
 ## 当前阻塞与判断
 - 当前最实际的阻塞不是架构，而是真实数据链路和研究真实性还没有进入执行阶段。
@@ -28,6 +41,10 @@
 - 当前真正需要预防的是后续开发过程中出现“平行主流程、平行配置、平行状态、平行指标计算”。
 - 当前如果马上大规模扩策略和实验，最先出问题的会是字段语义漂移和配置模型耦合，而不是模块不够多。
 - 当前下一步最值得继续收紧的点，不是再列更多结构，而是让更多校验逻辑和报表输出直接依赖 contracts，而不是依赖隐式列名假设。
+- 当前 source loader 的字段、空值、空字符串、非正价格与基础数值约束已经统一下沉到 `contracts/validation.py`，但跨表日期对齐与复权链路验收还没有补完。
+- 当前 source loader 的字段、空值、空字符串、非正价格与基础数值约束已经统一下沉到 `contracts/validation.py`，跨表日期错位测试也已补齐；阶段 2 的下一个明显缺口转为复权链路与真实复权样例验收。
+- 当前剩余未闭环的计划项，主要集中在外部依赖或主观决策项：真实供应数据默认接入、数据版本追溯口径、MVP 边界明确化，以及看板中的实验结果对比视图。
+- 当前真正仍需外部或决策确认的项，主要只剩“真实供应数据默认接入到哪一家/哪一套”和“初始版本提交摘要怎么定稿”。
 
 ## 技术决策
 | 决策 | 理由 |
@@ -55,10 +72,10 @@
 ## 下一步建议
 1. 按 task_plan.md 正式从阶段 2 开始执行。
 2. 在现有 `contracts/schemas.py` 基础上继续补“校验器复用”与“最小真实数据样例”，让 contracts 不只是清单。
-3. 在进入阶段 3 前，先把当前回测假设做成显式清单。
+3. 下一步优先补真实数据供应默认链路、数据版本追溯口径和复权样例，而不是再横向扩更多功能页。
 4. 后续每次进入新阶段时，都同步更新 progress.md 和 findings.md。
 5. 每次新增功能前先过一遍“执行检查清单”，防止出现第二条主流程或第二套状态。
-6. 阶段 2 后续重点应转向字段错误、日期错位、缺失值和复权链路验证，不再停留在静态结构定义。
+6. 阶段 2 后续重点应转向复权链路验证、缺失值传播和最小真实样例验收，不再停留在静态结构定义与基础对齐校验。
 7. 后续优先推进差距缩小专项计划中的前四条主线，而不是优先美化页面。
 
 ## 架构防偏结论
