@@ -17,6 +17,7 @@ from ashare_research.risk.position_sizing import (
     signal_weight_positions,
 )
 from ashare_research.strategies.moving_average import moving_average_crossover_signals
+from ashare_research.strategies.relative_strength import relative_strength_signals
 
 
 def test_moving_average_backtest_smoke() -> None:
@@ -53,9 +54,13 @@ def test_moving_average_backtest_smoke() -> None:
     assert result.metrics.average_turnover >= 0.0
     assert result.metrics.benchmark_total_return > 0.0
     assert "is_rebalance_day" in result.equity_curve.columns
+    assert "commission" in result.equity_curve.columns
+    assert "slippage" in result.equity_curve.columns
     assert result.equity_curve["is_rebalance_day"].isin([0.0, 1.0]).all()
     assert "signal_strength" in signals.columns
     assert signals["signal_strength"].ge(0.0).all()
+    assert not result.execution_diagnostics.empty
+    assert "blocked_reason" in result.execution_diagnostics.columns
 
 
 def test_report_exports(tmp_path) -> None:
@@ -140,6 +145,8 @@ def test_report_exports(tmp_path) -> None:
     assert paths.industry_exposure.exists()
     assert paths.strategy_attribution.exists()
     assert paths.positions.exists()
+    assert paths.execution_diagnostics.exists()
+    assert paths.trade_ledger.exists()
 
 
 def test_equal_weight_positions_prefers_stronger_signals() -> None:
@@ -220,3 +227,27 @@ def test_backtest_supports_signal_weight_position_sizing() -> None:
 
     first_day = result.positions[result.positions["date"] == dates[0]].sort_values("symbol")
     assert first_day["weight"].round(4).tolist() == [0.2, 0.8]
+
+
+def test_relative_strength_signals_emit_positive_strength_only() -> None:
+    dates = pd.bdate_range("2024-01-01", periods=30)
+    bars = pd.DataFrame(
+        {
+            "date": list(dates) * 2,
+            "symbol": ["000001.SZ"] * len(dates) + ["600000.SH"] * len(dates),
+            "open": [10 + index * 0.1 for index in range(len(dates))]
+            + [20 + index * 0.05 for index in range(len(dates))],
+            "high": [10.2 + index * 0.1 for index in range(len(dates))]
+            + [20.2 + index * 0.05 for index in range(len(dates))],
+            "low": [9.8 + index * 0.1 for index in range(len(dates))]
+            + [19.8 + index * 0.05 for index in range(len(dates))],
+            "close": [10 + index * 0.1 for index in range(len(dates))]
+            + [20 + index * 0.05 for index in range(len(dates))],
+            "volume": [1_000_000] * len(dates) * 2,
+        }
+    )
+
+    signals = relative_strength_signals(bars, lookback_window=5, min_positive_return=0.0)
+
+    assert {"date", "symbol", "signal", "signal_strength"} == set(signals.columns)
+    assert signals["signal_strength"].ge(0.0).all()

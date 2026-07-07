@@ -12,10 +12,10 @@ backtest:
   initial_cash: 1000000
   commission_rate: 0.0003
   stamp_tax_rate: 0.0005
-  max_names: 20
-  position_sizing_method: equal_weight
-  rebalance_frequency: daily
-  min_holding_days: 0
+  max_names: 10
+  position_sizing_method: signal_weight
+  rebalance_frequency: weekly
+  min_holding_days: 2
   exclude_suspended: true
   exclude_st: true
   block_limit_up_buys: true
@@ -25,9 +25,9 @@ backtest:
   max_volume_participation: 0.0
 
 strategy:
-  name: moving_average_crossover
-  fast_window: 20
-  slow_window: 60
+  name: relative_strength
+  lookback_window: 20
+  min_positive_return: 0.0
 
 report:
-  output_dir: reports/example_run
+  output_dir: reports/relative_strength_run

@@ -44,4 +44,12 @@ def run_moving_average_crossover(
     )
 
 
-registry.register("moving_average_crossover", run_moving_average_crossover)
+registry.register(
+    "moving_average_crossover",
+    run_moving_average_crossover,
+    description="Long-only trend signal based on fast/slow moving-average crossover.",
+    parameter_defaults={
+        "fast_window": 20,
+        "slow_window": 60,
+    },
+)

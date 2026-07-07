@@ -39,9 +39,14 @@ CONFIG_FIELD_LABELS = {
     "block_limit_up_buys": "禁止涨停买入",
     "block_limit_down_sells": "禁止跌停卖出",
     "min_amount": "最小成交额",
+    "slippage_rate": "滑点费率",
+    "max_volume_participation": "最大成交额参与率",
     "name": "策略名称",
+    "parameters": "策略参数",
     "fast_window": "快线窗口",
     "slow_window": "慢线窗口",
+    "lookback_window": "回看窗口",
+    "min_positive_return": "最小正收益阈值",
     "output_dir": "输出目录",
 }
 CONFIG_VALUE_LABELS = {
@@ -49,10 +54,12 @@ CONFIG_VALUE_LABELS = {
     "forward": "前复权",
     "backward": "后复权",
     "equal_weight": "等权重",
+    "signal_weight": "信号加权",
     "daily": "每日",
     "weekly": "每周",
     "monthly": "每月",
     "moving_average_crossover": "均线交叉",
+    "relative_strength": "相对强弱",
 }
 FILE_LABELS = {
     "summary": "汇总指标",
@@ -61,7 +68,14 @@ FILE_LABELS = {
     "rolling_metrics": "滚动指标",
     "monthly_returns": "月度收益",
     "industry_exposure": "行业暴露",
+    "strategy_attribution": "策略归因",
     "positions": "持仓明细",
+    "execution_diagnostics": "执行诊断",
+    "trade_ledger": "交易账本",
+    "position_contribution": "持仓贡献",
+    "turnover_breakdown": "换手拆解",
+    "parameter_sweep": "参数扫描汇总",
+    "parameter_sweep_manifest": "参数扫描清单",
 }
 COLUMN_LABELS = {
     "date": "日期",
@@ -81,6 +95,8 @@ COLUMN_LABELS = {
     "gross_exposure": "总暴露",
     "cash_weight": "现金仓位",
     "cost": "交易成本",
+    "commission": "佣金成本",
+    "slippage": "滑点成本",
     "tax": "印花税",
     "net_return": "净收益",
     "benchmark_return": "基准收益",
@@ -89,6 +105,34 @@ COLUMN_LABELS = {
     "strategy_index": "策略净值指数",
     "benchmark_index": "基准净值指数",
     "is_rebalance_day": "是否调仓日",
+    "source": "归因来源",
+    "contribution": "贡献代理值",
+    "previous_weight": "前序权重",
+    "target_weight": "目标权重",
+    "executed_weight": "执行后权重",
+    "desired_trade_weight": "目标调仓权重",
+    "executed_trade_weight": "实际调仓权重",
+    "available": "有行情",
+    "tradable": "可交易",
+    "limit_up": "涨停",
+    "limit_down": "跌停",
+    "liquidity_amount": "流动性成交额",
+    "max_trade_weight": "最大允许调仓权重",
+    "blocked_reason": "执行原因",
+    "is_blocked": "是否受阻",
+    "side": "方向",
+    "weight_delta": "权重变化",
+    "reference_equity": "参考权益",
+    "trade_notional": "成交名义金额",
+    "return": "收益率",
+    "run_id": "运行标识",
+    "strategy_name": "策略名称",
+    "lookback_window": "回看窗口",
+    "min_positive_return": "最小正收益阈值",
+    "fast_window": "快线窗口",
+    "slow_window": "慢线窗口",
+    "buy_turnover": "买入换手率",
+    "total_cost": "总成本",
     "name": "文件名称",
     "path": "文件路径",
 }
@@ -126,24 +170,34 @@ def main() -> None:
 
     _render_metrics(report["summary"])
 
-    tab_equity, tab_risk, tab_monthly, tab_positions, tab_exposure, tab_files = st.tabs(
-        ["净值", "风险", "月度", "持仓", "暴露", "文件"]
+    tab_equity, tab_risk, tab_monthly, tab_positions, tab_exposure, tab_execution, tab_experiments, tab_files = st.tabs(
+        ["净值", "风险", "月度", "持仓", "暴露", "执行", "实验", "文件"]
     )
 
     with tab_equity:
         _render_equity_section(report["equity_curve"], report["drawdowns"], config)
 
     with tab_risk:
-        _render_risk_section(report["drawdowns"], report["rolling_metrics"])
+        _render_risk_section(
+            report["drawdowns"],
+            report["rolling_metrics"],
+            report["turnover_breakdown"],
+        )
 
     with tab_monthly:
         _render_monthly_section(report["monthly_returns"])
 
     with tab_positions:
-        _render_positions_section(report["positions"])
+        _render_positions_section(report["positions"], report["position_contribution"])
 
     with tab_exposure:
-        _render_exposure_section(report["industry_exposure"])
+        _render_exposure_section(report["industry_exposure"], report["strategy_attribution"])
+
+    with tab_execution:
+        _render_execution_section(report["execution_diagnostics"], report["trade_ledger"])
+
+    with tab_experiments:
+        _render_experiment_section(report["parameter_sweep"], report["parameter_sweep_manifest"])
 
     with tab_files:
         _render_files_section(report["paths"])
@@ -166,7 +220,14 @@ def _load_report_bundle(output_dir: str) -> dict[str, Any] | None:
     rolling_metrics_path = report_dir / "rolling_metrics.csv"
     monthly_path = report_dir / "monthly_returns.csv"
     industry_exposure_path = report_dir / "industry_exposure.csv"
+    strategy_attribution_path = report_dir / "strategy_attribution.csv"
     positions_path = report_dir / "positions.csv"
+    execution_diagnostics_path = report_dir / "execution_diagnostics.csv"
+    trade_ledger_path = report_dir / "trade_ledger.csv"
+    position_contribution_path = report_dir / "position_contribution.csv"
+    turnover_breakdown_path = report_dir / "turnover_breakdown.csv"
+    parameter_sweep_path = report_dir / "parameter_sweep.csv"
+    parameter_sweep_manifest_path = report_dir / "parameter_sweep_manifest.json"
 
     if not summary_path.exists() or not equity_path.exists():
         return None
@@ -192,6 +253,37 @@ def _load_report_bundle(output_dir: str) -> dict[str, Any] | None:
         if positions_path.exists()
         else pd.DataFrame()
     )
+    strategy_attribution = (
+        pd.read_csv(strategy_attribution_path, parse_dates=["date"])
+        if strategy_attribution_path.exists()
+        else pd.DataFrame()
+    )
+    execution_diagnostics = (
+        pd.read_csv(execution_diagnostics_path, parse_dates=["date"])
+        if execution_diagnostics_path.exists()
+        else pd.DataFrame()
+    )
+    trade_ledger = (
+        pd.read_csv(trade_ledger_path, parse_dates=["date"])
+        if trade_ledger_path.exists()
+        else pd.DataFrame()
+    )
+    position_contribution = (
+        pd.read_csv(position_contribution_path, parse_dates=["date"])
+        if position_contribution_path.exists()
+        else pd.DataFrame()
+    )
+    turnover_breakdown = (
+        pd.read_csv(turnover_breakdown_path, parse_dates=["date"])
+        if turnover_breakdown_path.exists()
+        else pd.DataFrame()
+    )
+    parameter_sweep = pd.read_csv(parameter_sweep_path) if parameter_sweep_path.exists() else pd.DataFrame()
+    parameter_sweep_manifest = (
+        parameter_sweep_manifest_path.read_text(encoding="utf-8")
+        if parameter_sweep_manifest_path.exists()
+        else None
+    )
 
     return {
         "summary": summary,
@@ -200,7 +292,14 @@ def _load_report_bundle(output_dir: str) -> dict[str, Any] | None:
         "rolling_metrics": rolling_metrics,
         "monthly_returns": monthly_returns,
         "industry_exposure": industry_exposure,
+        "strategy_attribution": strategy_attribution,
         "positions": positions,
+        "execution_diagnostics": execution_diagnostics,
+        "trade_ledger": trade_ledger,
+        "position_contribution": position_contribution,
+        "turnover_breakdown": turnover_breakdown,
+        "parameter_sweep": parameter_sweep,
+        "parameter_sweep_manifest": parameter_sweep_manifest,
         "paths": {
             "summary": summary_path,
             "equity_curve": equity_path,
@@ -208,7 +307,14 @@ def _load_report_bundle(output_dir: str) -> dict[str, Any] | None:
             "rolling_metrics": rolling_metrics_path,
             "monthly_returns": monthly_path,
             "industry_exposure": industry_exposure_path,
+            "strategy_attribution": strategy_attribution_path,
             "positions": positions_path,
+            "execution_diagnostics": execution_diagnostics_path,
+            "trade_ledger": trade_ledger_path,
+            "position_contribution": position_contribution_path,
+            "turnover_breakdown": turnover_breakdown_path,
+            "parameter_sweep": parameter_sweep_path,
+            "parameter_sweep_manifest": parameter_sweep_manifest_path,
         },
     }
 
@@ -310,8 +416,12 @@ def _render_equity_section(
     )
 
 
-def _render_risk_section(drawdowns: pd.DataFrame, rolling_metrics: pd.DataFrame) -> None:
-    if drawdowns.empty and rolling_metrics.empty:
+def _render_risk_section(
+    drawdowns: pd.DataFrame,
+    rolling_metrics: pd.DataFrame,
+    turnover_breakdown: pd.DataFrame,
+) -> None:
+    if drawdowns.empty and rolling_metrics.empty and turnover_breakdown.empty:
         st.info("暂无风险诊断数据。")
         return
 
@@ -326,19 +436,29 @@ def _render_risk_section(drawdowns: pd.DataFrame, rolling_metrics: pd.DataFrame)
         )
         st.dataframe(_localize_dataframe(drawdowns.tail(20)), use_container_width=True, hide_index=True)
 
-    if rolling_metrics.empty:
-        return
+    if not rolling_metrics.empty:
+        st.subheader("滚动诊断")
+        chart_columns = [
+            column
+            for column in rolling_metrics.columns
+            if column.startswith("rolling_") and rolling_metrics[column].notna().any()
+        ]
+        if chart_columns:
+            chart = _with_chart_index(rolling_metrics, "date")[chart_columns].rename(columns=_display_label)
+            st.line_chart(chart)
+        st.dataframe(_localize_dataframe(rolling_metrics.tail(60)), use_container_width=True, hide_index=True)
 
-    st.subheader("滚动诊断")
-    chart_columns = [
-        column
-        for column in rolling_metrics.columns
-        if column.startswith("rolling_") and rolling_metrics[column].notna().any()
-    ]
-    if chart_columns:
-        chart = _with_chart_index(rolling_metrics, "date")[chart_columns].rename(columns=_display_label)
-        st.line_chart(chart)
-    st.dataframe(_localize_dataframe(rolling_metrics.tail(60)), use_container_width=True, hide_index=True)
+    if not turnover_breakdown.empty:
+        st.subheader("换手与成本拆解")
+        chart_columns = [
+            column
+            for column in ["buy_turnover", "sell_turnover", "total_cost"]
+            if column in turnover_breakdown.columns
+        ]
+        if chart_columns:
+            chart = _with_chart_index(turnover_breakdown, "date")[chart_columns].rename(columns=_display_label)
+            st.line_chart(chart)
+        st.dataframe(_localize_dataframe(turnover_breakdown.tail(60)), use_container_width=True, hide_index=True)
 
 
 def _render_monthly_section(monthly_returns: pd.DataFrame) -> None:
@@ -359,32 +479,122 @@ def _render_monthly_section(monthly_returns: pd.DataFrame) -> None:
     st.dataframe(_localize_dataframe(monthly_returns), use_container_width=True, hide_index=True)
 
 
-def _render_positions_section(positions: pd.DataFrame) -> None:
-    if positions.empty:
+def _render_positions_section(
+    positions: pd.DataFrame,
+    position_contribution: pd.DataFrame,
+) -> None:
+    if positions.empty and position_contribution.empty:
         st.info("暂无持仓数据。")
         return
 
-    latest_date = positions["date"].max()
-    latest_positions = positions.loc[positions["date"] == latest_date].sort_values(
-        "weight",
-        ascending=False,
-    )
-    st.subheader(f"最新持仓：{latest_date:%Y-%m-%d}")
-    st.dataframe(_localize_dataframe(latest_positions), use_container_width=True, hide_index=True)
+    if not positions.empty:
+        latest_date = positions["date"].max()
+        latest_positions = positions.loc[positions["date"] == latest_date].sort_values(
+            "weight",
+            ascending=False,
+        )
+        st.subheader(f"最新持仓：{latest_date:%Y-%m-%d}")
+        st.dataframe(_localize_dataframe(latest_positions), use_container_width=True, hide_index=True)
+
+    if not position_contribution.empty:
+        latest_date = position_contribution["date"].max()
+        latest_contribution = position_contribution.loc[
+            position_contribution["date"] == latest_date
+        ].sort_values("contribution", ascending=False)
+        st.subheader(f"最新持仓贡献：{latest_date:%Y-%m-%d}")
+        st.dataframe(_localize_dataframe(latest_contribution), use_container_width=True, hide_index=True)
 
 
-def _render_exposure_section(industry_exposure: pd.DataFrame) -> None:
-    if industry_exposure.empty:
-        st.info("暂无行业或板块暴露数据。")
+def _render_exposure_section(
+    industry_exposure: pd.DataFrame,
+    strategy_attribution: pd.DataFrame,
+) -> None:
+    if industry_exposure.empty and strategy_attribution.empty:
+        st.info("暂无行业、板块或归因数据。")
         return
 
-    latest_date = industry_exposure["date"].max()
-    latest_exposure = industry_exposure.loc[industry_exposure["date"] == latest_date].copy()
-    latest_exposure = latest_exposure.sort_values("exposure", ascending=False)
-    st.subheader(f"最新暴露：{latest_date:%Y-%m-%d}")
-    chart = _with_chart_index(latest_exposure, "group_name")[["exposure"]].rename(columns=_display_label)
-    st.bar_chart(chart)
-    st.dataframe(_localize_dataframe(latest_exposure), use_container_width=True, hide_index=True)
+    if not industry_exposure.empty:
+        latest_date = industry_exposure["date"].max()
+        latest_exposure = industry_exposure.loc[industry_exposure["date"] == latest_date].copy()
+        latest_exposure = latest_exposure.sort_values("exposure", ascending=False)
+        st.subheader(f"最新暴露：{latest_date:%Y-%m-%d}")
+        chart = _with_chart_index(latest_exposure, "group_name")[["exposure"]].rename(columns=_display_label)
+        st.bar_chart(chart)
+        st.dataframe(_localize_dataframe(latest_exposure), use_container_width=True, hide_index=True)
+
+    if not strategy_attribution.empty:
+        latest_date = strategy_attribution["date"].max()
+        latest_attribution = strategy_attribution.loc[
+            strategy_attribution["date"] == latest_date
+        ].copy()
+        latest_attribution = latest_attribution.sort_values("contribution", ascending=False)
+        st.subheader(f"最新归因：{latest_date:%Y-%m-%d}")
+        attribution_chart = _with_chart_index(latest_attribution, "source")[["contribution"]].rename(
+            columns=_display_label
+        )
+        st.bar_chart(attribution_chart)
+        st.dataframe(_localize_dataframe(latest_attribution), use_container_width=True, hide_index=True)
+
+
+def _render_execution_section(
+    execution_diagnostics: pd.DataFrame,
+    trade_ledger: pd.DataFrame,
+) -> None:
+    if execution_diagnostics.empty and trade_ledger.empty:
+        st.info("暂无执行诊断数据。")
+        return
+
+    if not execution_diagnostics.empty:
+        blocked = execution_diagnostics[execution_diagnostics["is_blocked"]].copy()
+        st.subheader("执行诊断")
+        stats = st.columns(3)
+        stats[0].metric("诊断行数", _format_integer(len(execution_diagnostics)))
+        stats[1].metric("受阻行数", _format_integer(len(blocked)))
+        stats[2].metric(
+            "受阻占比",
+            _format_pct(0.0 if execution_diagnostics.empty else len(blocked) / len(execution_diagnostics)),
+        )
+        st.dataframe(
+            _localize_dataframe(blocked.tail(50) if not blocked.empty else execution_diagnostics.tail(50)),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    if not trade_ledger.empty:
+        st.subheader("交易账本")
+        st.dataframe(_localize_dataframe(trade_ledger.tail(100)), use_container_width=True, hide_index=True)
+
+
+def _render_experiment_section(
+    parameter_sweep: pd.DataFrame,
+    parameter_sweep_manifest: str | None,
+) -> None:
+    if parameter_sweep.empty:
+        st.info("暂无参数扫描结果。")
+        return
+
+    st.subheader("参数扫描对比")
+    sortable_columns = [
+        column for column in ["annual_return", "sharpe_ratio", "max_drawdown", "information_ratio"]
+        if column in parameter_sweep.columns
+    ]
+    sort_by = st.selectbox("排序指标", sortable_columns, index=0 if sortable_columns else None)
+    ascending = sort_by == "max_drawdown"
+    ranked = parameter_sweep.sort_values(sort_by, ascending=ascending).reset_index(drop=True)
+
+    chart_columns = [
+        column for column in ["annual_return", "sharpe_ratio", "information_ratio"]
+        if column in ranked.columns
+    ]
+    if chart_columns:
+        top_ranked = ranked.head(10).copy()
+        comparison_chart = _with_chart_index(top_ranked, "run_id")[chart_columns].rename(columns=_display_label)
+        st.bar_chart(comparison_chart)
+
+    st.dataframe(_localize_dataframe(ranked), use_container_width=True, hide_index=True)
+    if parameter_sweep_manifest is not None:
+        st.subheader("实验清单")
+        st.code(parameter_sweep_manifest, language="json")
 
 
 def _render_files_section(paths: dict[str, Path]) -> None:
@@ -436,6 +646,11 @@ def _localize_config_section(section: dict[str, Any]) -> dict[str, Any]:
 def _localize_config_value(value: Any) -> Any:
     if isinstance(value, bool):
         return "是" if value else "否"
+    if isinstance(value, dict):
+        return {
+            CONFIG_FIELD_LABELS.get(key, key): _localize_config_value(inner_value)
+            for key, inner_value in value.items()
+        }
     if isinstance(value, str):
         return CONFIG_VALUE_LABELS.get(value, value)
     return value

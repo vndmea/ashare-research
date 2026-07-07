@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -33,13 +33,27 @@ class BacktestConfig:
     block_limit_up_buys: bool = True
     block_limit_down_sells: bool = True
     min_amount: float = 0.0
+    slippage_rate: float = 0.0
+    max_volume_participation: float = 0.0
 
 
 @dataclass(frozen=True)
 class StrategyConfig:
     name: str = "moving_average_crossover"
-    fast_window: int = 20
-    slow_window: int = 60
+    parameters: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def fast_window(self) -> int:
+        return int(self.parameters.get("fast_window", 20))
+
+    @property
+    def slow_window(self) -> int:
+        return int(self.parameters.get("slow_window", 60))
+
+    def resolved_parameters(self, defaults: dict[str, Any] | None = None) -> dict[str, Any]:
+        merged = dict(defaults or {})
+        merged.update(self.parameters)
+        return merged
 
 
 @dataclass(frozen=True)
@@ -101,11 +115,18 @@ def parse_config(data: dict[str, Any]) -> ResearchConfig:
             block_limit_up_buys=bool(backtest_section.get("block_limit_up_buys", True)),
             block_limit_down_sells=bool(backtest_section.get("block_limit_down_sells", True)),
             min_amount=float(backtest_section.get("min_amount", 0.0)),
+            slippage_rate=float(backtest_section.get("slippage_rate", 0.0)),
+            max_volume_participation=float(
+                backtest_section.get("max_volume_participation", 0.0)
+            ),
         ),
         strategy=StrategyConfig(
             name=str(strategy_section.get("name", "moving_average_crossover")),
-            fast_window=int(strategy_section.get("fast_window", 20)),
-            slow_window=int(strategy_section.get("slow_window", 60)),
+            parameters={
+                key: value
+                for key, value in strategy_section.items()
+                if key != "name"
+            },
         ),
         report=ReportConfig(
             output_dir=str(report_section.get("output_dir", "reports/example_run")),

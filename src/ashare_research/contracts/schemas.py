@@ -199,12 +199,93 @@ EQUITY_CURVE_SCHEMA = DatasetSchema(
         _field("sell_turnover", "float", True, "One-day sell turnover used to compute stamp tax."),
         _field("gross_exposure", "float", True, "Sum of positive portfolio weights on the date."),
         _field("cash_weight", "float", True, "Residual cash weight after constrained portfolio sizing."),
-        _field("cost", "float", True, "Commission cost deducted from return."),
+        _field("commission", "float", True, "Commission cost deducted from return."),
+        _field("slippage", "float", True, "Slippage cost deducted from return."),
+        _field("cost", "float", True, "Total trading cost excluding tax, including commission and slippage."),
         _field("tax", "float", True, "Stamp tax deducted from return."),
         _field("net_return", "float", True, "Post-cost close-to-close daily portfolio return."),
         _field("equity", "float", True, "Portfolio equity after compounding net returns."),
         _field("is_rebalance_day", "float", True, "1.0 when weights changed from prior day, else 0.0."),
         _field("benchmark_return", "float", False, "Optional benchmark return merged into report exports."),
+    ),
+)
+
+EXECUTION_DIAGNOSTICS_SCHEMA = DatasetSchema(
+    name="execution_diagnostics",
+    description="Per-date per-symbol execution diagnostics capturing requested and executed weights.",
+    primary_keys=("date", "symbol"),
+    producer_modules=("ashare_research.risk.tradeability", "ashare_research.backtest.engine"),
+    consumer_modules=("ashare_research.analysis.reports", "dashboard.py"),
+    fields=(
+        _field("date", "datetime64[ns]", True, "Trading date."),
+        _field("symbol", "string", True, "Symbol evaluated for execution."),
+        _field("previous_weight", "float", True, "Portfolio weight before the date's execution step."),
+        _field("target_weight", "float", True, "Desired target weight before execution constraints."),
+        _field("executed_weight", "float", True, "Final executed weight after execution constraints."),
+        _field("desired_trade_weight", "float", True, "Requested weight change before constraints."),
+        _field("executed_trade_weight", "float", True, "Actual weight change after constraints."),
+        _field("available", "bool", True, "Whether a bar exists for the symbol/date pair."),
+        _field("tradable", "bool", True, "Whether the symbol was tradable after base eligibility checks."),
+        _field("limit_up", "bool", True, "Whether the symbol was marked limit-up on the date."),
+        _field("limit_down", "bool", True, "Whether the symbol was marked limit-down on the date."),
+        _field("liquidity_amount", "float", True, "Liquidity notional used for participation checks."),
+        _field("max_trade_weight", "float", True, "Maximum trade weight allowed by participation constraints."),
+        _field("blocked_reason", "string", True, "Pipe-delimited execution reason diagnostics."),
+        _field("is_blocked", "bool", True, "Whether any execution constraint altered or blocked the request."),
+    ),
+)
+
+TRADE_LEDGER_SCHEMA = DatasetSchema(
+    name="trade_ledger",
+    description="Daily executed trade ledger derived from execution diagnostics and portfolio equity.",
+    primary_keys=("date", "symbol"),
+    producer_modules=("ashare_research.backtest.accounting", "ashare_research.backtest.engine"),
+    consumer_modules=("ashare_research.analysis.reports", "dashboard.py"),
+    fields=(
+        _field("date", "datetime64[ns]", True, "Trading date."),
+        _field("symbol", "string", True, "Executed symbol."),
+        _field("side", "string", True, "Trade side: buy or sell."),
+        _field("previous_weight", "float", True, "Portfolio weight before execution."),
+        _field("target_weight", "float", True, "Requested target weight before constraints."),
+        _field("executed_weight", "float", True, "Executed ending weight."),
+        _field("weight_delta", "float", True, "Executed weight change for the trade."),
+        _field("reference_equity", "float", True, "Equity reference used to approximate trade notional."),
+        _field("trade_notional", "float", True, "Approximate executed trade notional."),
+        _field("blocked_reason", "string", True, "Execution reason context carried from diagnostics."),
+    ),
+)
+
+POSITION_CONTRIBUTION_SCHEMA = DatasetSchema(
+    name="position_contribution",
+    description="Daily per-position contribution report using close-to-next-close returns.",
+    primary_keys=("date", "symbol"),
+    producer_modules=("ashare_research.analysis.reports",),
+    consumer_modules=("dashboard.py",),
+    fields=(
+        _field("date", "datetime64[ns]", True, "Trading date."),
+        _field("symbol", "string", True, "Held symbol."),
+        _field("weight", "float", True, "Position weight used for the date."),
+        _field("return", "float", True, "Close-to-next-close symbol return."),
+        _field("contribution", "float", True, "Weight multiplied by symbol return."),
+        _field("group_name", "string", True, "Industry or sector grouping for the symbol."),
+    ),
+)
+
+TURNOVER_BREAKDOWN_SCHEMA = DatasetSchema(
+    name="turnover_breakdown",
+    description="Daily turnover and cost breakdown derived from the equity curve.",
+    primary_keys=("date",),
+    producer_modules=("ashare_research.analysis.reports",),
+    consumer_modules=("dashboard.py",),
+    fields=(
+        _field("date", "datetime64[ns]", True, "Trading date."),
+        _field("turnover", "float", True, "Total one-day turnover."),
+        _field("buy_turnover", "float", True, "One-day buy turnover."),
+        _field("sell_turnover", "float", True, "One-day sell turnover."),
+        _field("commission", "float", True, "Commission cost for the date."),
+        _field("slippage", "float", True, "Slippage cost for the date."),
+        _field("tax", "float", True, "Stamp tax for the date."),
+        _field("total_cost", "float", True, "Total execution cost for the date."),
     ),
 )
 
@@ -304,6 +385,10 @@ RUNTIME_DATASET_SCHEMAS: dict[str, DatasetSchema] = {
         MONTHLY_RETURNS_SCHEMA,
         INDUSTRY_EXPOSURE_SCHEMA,
         STRATEGY_ATTRIBUTION_SCHEMA,
+        EXECUTION_DIAGNOSTICS_SCHEMA,
+        TRADE_LEDGER_SCHEMA,
+        POSITION_CONTRIBUTION_SCHEMA,
+        TURNOVER_BREAKDOWN_SCHEMA,
     )
 }
 
@@ -317,4 +402,3 @@ def get_dataset_schema(name: str) -> DatasetSchema:
     if name not in ALL_DATASET_SCHEMAS:
         raise KeyError(f"Unknown dataset schema: {name}")
     return ALL_DATASET_SCHEMAS[name]
-

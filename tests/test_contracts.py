@@ -38,6 +38,8 @@ def test_contract_registry_contains_all_official_structures() -> None:
         "monthly_returns",
         "industry_exposure",
         "strategy_attribution",
+        "execution_diagnostics",
+        "trade_ledger",
     }
 
     assert expected_source.issubset(SOURCE_DATASET_SCHEMAS)
@@ -60,6 +62,10 @@ def test_runtime_contracts_capture_current_semantics() -> None:
     assert SIGNALS_SCHEMA.required_field_set == {"date", "symbol", "signal"}
     assert "signal_strength" in SIGNALS_SCHEMA.optional_field_set
     assert INDUSTRY_EXPOSURE_SCHEMA.required_field_set == {"date", "group_name", "exposure"}
+    equity_required = get_dataset_schema("equity_curve").required_field_set
+    assert {"commission", "slippage", "cost"}.issubset(equity_required)
+    diagnostics_required = get_dataset_schema("execution_diagnostics").required_field_set
+    assert {"blocked_reason", "max_trade_weight", "is_blocked"}.issubset(diagnostics_required)
     contribution_field = next(
         field for field in STRATEGY_ATTRIBUTION_SCHEMA.fields if field.name == "contribution"
     )

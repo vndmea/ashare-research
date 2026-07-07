@@ -26,6 +26,14 @@ class ResearchArtifacts:
 
 
 @dataclass(frozen=True)
+class ResearchInputs:
+    bars: pd.DataFrame
+    benchmark_returns: pd.DataFrame | None
+    trading_calendar: pd.DatetimeIndex | None
+    universe: pd.DataFrame | None
+
+
+@dataclass(frozen=True)
 class ResearchRun:
     config: ResearchConfig
     artifacts: ResearchArtifacts
@@ -38,41 +46,44 @@ class ResearchRunWithReports:
     reports: ReportPaths
 
 
+@dataclass(frozen=True)
+class DataValidationSummary:
+    bar_rows: int
+    symbol_count: int
+    start_date: str
+    end_date: str
+    benchmark_rows: int
+    trading_calendar_days: int
+    universe_rows: int
+
+
 def run_research(config: ResearchConfig) -> ResearchRun:
-    bars = load_daily_bars(
-        config.data.daily_bar_path,
-        start_date=config.backtest.start_date,
-        end_date=config.backtest.end_date,
-        price_adjustment=config.data.price_adjustment,
-        adjustment_factor_path=config.data.adjustment_factor_path,
-    )
-    trading_calendar = _load_optional_calendar(config)
-    universe = _load_optional_universe(config)
-    benchmark_returns = _load_optional_benchmark(config)
-    signals = _run_strategy(config, bars)
+    inputs = load_research_inputs(config)
+    signals = _run_strategy(config, inputs.bars)
     backtest = run_close_to_close_backtest(
-        bars,
+        inputs.bars,
         signals,
         initial_cash=config.backtest.initial_cash,
         commission_rate=config.backtest.commission_rate,
         stamp_tax_rate=config.backtest.stamp_tax_rate,
+        slippage_rate=config.backtest.slippage_rate,
         max_names=config.backtest.max_names,
         position_sizing_method=config.backtest.position_sizing_method,
         rebalance_frequency=config.backtest.rebalance_frequency,
         min_holding_days=config.backtest.min_holding_days,
-        benchmark_returns=benchmark_returns,
-        trading_calendar=trading_calendar,
-        universe=universe,
+        benchmark_returns=inputs.benchmark_returns,
+        trading_calendar=inputs.trading_calendar,
+        universe=inputs.universe,
         trade_constraints=_trade_constraints(config.backtest),
     )
     return ResearchRun(
         config=config,
         artifacts=ResearchArtifacts(
-            bars=bars,
+            bars=inputs.bars,
             signals=signals,
-            benchmark_returns=benchmark_returns,
-            trading_calendar=trading_calendar,
-            universe=universe,
+            benchmark_returns=inputs.benchmark_returns,
+            trading_calendar=inputs.trading_calendar,
+            universe=inputs.universe,
         ),
         backtest=backtest,
     )
@@ -90,18 +101,63 @@ def run_research_and_write_reports(
         run.backtest.metrics,
         bars=run.artifacts.bars,
         benchmark_returns=run.artifacts.benchmark_returns,
+        execution_diagnostics=run.backtest.execution_diagnostics,
+        trade_ledger=run.backtest.trade_ledger,
     )
     return ResearchRunWithReports(run=run, reports=reports)
 
 
+def load_research_inputs(config: ResearchConfig) -> ResearchInputs:
+    bars = load_daily_bars(
+        config.data.daily_bar_path,
+        start_date=config.backtest.start_date,
+        end_date=config.backtest.end_date,
+        price_adjustment=config.data.price_adjustment,
+        adjustment_factor_path=config.data.adjustment_factor_path,
+    )
+    inputs = ResearchInputs(
+        bars=bars,
+        trading_calendar=_load_optional_calendar(config),
+        universe=_load_optional_universe(config),
+        benchmark_returns=_load_optional_benchmark(config),
+    )
+    validate_research_input_alignment(inputs)
+    return inputs
+
+
+def summarize_research_inputs(inputs: ResearchInputs) -> DataValidationSummary:
+    dates = pd.to_datetime(inputs.bars["date"], errors="raise")
+    return DataValidationSummary(
+        bar_rows=len(inputs.bars),
+        symbol_count=int(inputs.bars["symbol"].nunique()),
+        start_date=dates.min().date().isoformat(),
+        end_date=dates.max().date().isoformat(),
+        benchmark_rows=0 if inputs.benchmark_returns is None else len(inputs.benchmark_returns),
+        trading_calendar_days=0 if inputs.trading_calendar is None else len(inputs.trading_calendar),
+        universe_rows=0 if inputs.universe is None else len(inputs.universe),
+    )
+
+
+def validate_research_input_alignment(inputs: ResearchInputs) -> None:
+    bar_dates = pd.DatetimeIndex(
+        pd.to_datetime(inputs.bars["date"], errors="raise").drop_duplicates().sort_values()
+    )
+    if bar_dates.empty:
+        raise ValueError("bars do not contain any trading dates.")
+
+    if inputs.trading_calendar is not None:
+        _validate_trading_calendar_alignment(bar_dates, inputs.trading_calendar)
+    if inputs.benchmark_returns is not None:
+        _validate_benchmark_alignment(bar_dates, inputs.benchmark_returns)
+    if inputs.universe is not None:
+        _validate_universe_alignment(inputs.bars, bar_dates, inputs.universe)
+
+
 def _run_strategy(config: ResearchConfig, bars: pd.DataFrame) -> pd.DataFrame:
-    runner = strategy_registry.get(config.strategy.name)
-    return runner(
+    definition = strategy_registry.get_definition(config.strategy.name)
+    return definition.runner(
         bars,
-        {
-            "fast_window": config.strategy.fast_window,
-            "slow_window": config.strategy.slow_window,
-        },
+        config.strategy.resolved_parameters(definition.parameter_defaults),
     )
 
 
@@ -140,4 +196,83 @@ def _trade_constraints(backtest: BacktestConfig) -> TradeConstraints:
         block_limit_up_buys=backtest.block_limit_up_buys,
         block_limit_down_sells=backtest.block_limit_down_sells,
         min_amount=backtest.min_amount,
+        max_volume_participation=backtest.max_volume_participation,
     )
+
+
+def _validate_trading_calendar_alignment(
+    bar_dates: pd.DatetimeIndex,
+    trading_calendar: pd.DatetimeIndex,
+) -> None:
+    calendar = pd.DatetimeIndex(pd.to_datetime(trading_calendar, errors="raise").drop_duplicates())
+    in_range = calendar[(calendar >= bar_dates.min()) & (calendar <= bar_dates.max())].sort_values()
+    _raise_on_missing_or_extra_dates(
+        actual_dates=in_range,
+        expected_dates=bar_dates,
+        actual_name="trading_calendar",
+        expected_name="bars",
+    )
+
+
+def _validate_benchmark_alignment(
+    bar_dates: pd.DatetimeIndex,
+    benchmark_returns: pd.DataFrame,
+) -> None:
+    expected_dates = bar_dates[:-1]
+    actual_dates = pd.DatetimeIndex(
+        pd.to_datetime(benchmark_returns["date"], errors="raise").drop_duplicates().sort_values()
+    )
+    _raise_on_missing_or_extra_dates(
+        actual_dates=actual_dates,
+        expected_dates=expected_dates,
+        actual_name="benchmark_returns",
+        expected_name="bars close-to-next-close return dates",
+    )
+
+
+def _validate_universe_alignment(
+    bars: pd.DataFrame,
+    bar_dates: pd.DatetimeIndex,
+    universe: pd.DataFrame,
+) -> None:
+    universe_in_range = universe.loc[
+        universe["date"].between(bar_dates.min(), bar_dates.max()),
+        ["date", "symbol"],
+    ].copy()
+    universe_dates = pd.DatetimeIndex(
+        pd.to_datetime(universe_in_range["date"], errors="raise").drop_duplicates().sort_values()
+    )
+    missing_dates = sorted(set(bar_dates).difference(universe_dates))
+    if missing_dates:
+        sample = [pd.Timestamp(date).date().isoformat() for date in missing_dates[:5]]
+        raise ValueError(f"universe is missing bars dates: {sample}")
+
+    bar_pairs = {
+        (pd.Timestamp(row.date), str(row.symbol))
+        for row in bars[["date", "symbol"]].drop_duplicates().itertuples(index=False)
+    }
+    invalid_pairs = [
+        {"date": pd.Timestamp(row.date).date().isoformat(), "symbol": str(row.symbol)}
+        for row in universe_in_range.drop_duplicates().itertuples(index=False)
+        if (pd.Timestamp(row.date), str(row.symbol)) not in bar_pairs
+    ]
+    if invalid_pairs:
+        raise ValueError(f"universe contains date/symbol pairs not present in bars: {invalid_pairs[:5]}")
+
+
+def _raise_on_missing_or_extra_dates(
+    actual_dates: pd.DatetimeIndex,
+    expected_dates: pd.DatetimeIndex,
+    *,
+    actual_name: str,
+    expected_name: str,
+) -> None:
+    missing_dates = sorted(set(expected_dates).difference(actual_dates))
+    if missing_dates:
+        sample = [pd.Timestamp(date).date().isoformat() for date in missing_dates[:5]]
+        raise ValueError(f"{actual_name} is missing {expected_name} dates: {sample}")
+
+    extra_dates = sorted(set(actual_dates).difference(expected_dates))
+    if extra_dates:
+        sample = [pd.Timestamp(date).date().isoformat() for date in extra_dates[:5]]
+        raise ValueError(f"{actual_name} contains dates not present in {expected_name}: {sample}")

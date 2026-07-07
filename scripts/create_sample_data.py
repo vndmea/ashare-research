@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from ashare_research.data.manifest import build_data_manifest, write_data_manifest
 
 
 def main() -> None:
@@ -40,18 +41,21 @@ def main() -> None:
                 }
             )
 
+    bars_frame = pd.DataFrame(rows)
     output_path = Path("data/raw/daily_bars.csv")
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(rows).to_csv(output_path, index=False)
+    bars_frame.to_csv(output_path, index=False)
 
     adjustment_factor_path = Path("data/raw/adjustment_factors.csv")
-    pd.DataFrame(rows)[["date", "symbol", "adj_factor"]].to_csv(
+    adjustment_factors = bars_frame[["date", "symbol", "adj_factor"]].copy()
+    adjustment_factors.to_csv(
         adjustment_factor_path,
         index=False,
     )
 
     trading_calendar_path = Path("data/raw/trading_calendar.csv")
-    pd.DataFrame({"date": dates.date.astype(str)}).to_csv(trading_calendar_path, index=False)
+    trading_calendar = pd.DataFrame({"date": dates.date.astype(str)})
+    trading_calendar.to_csv(trading_calendar_path, index=False)
 
     universe_rows = [
         {"date": date.date().isoformat(), "symbol": symbol}
@@ -59,7 +63,8 @@ def main() -> None:
         for symbol in symbols
     ]
     universe_path = Path("data/raw/universe.csv")
-    pd.DataFrame(universe_rows).to_csv(universe_path, index=False)
+    universe = pd.DataFrame(universe_rows)
+    universe.to_csv(universe_path, index=False)
 
     benchmark_rows = []
     benchmark_close = 4000.0
@@ -75,12 +80,29 @@ def main() -> None:
         )
 
     benchmark_path = Path("data/raw/benchmark.csv")
-    pd.DataFrame(benchmark_rows).to_csv(benchmark_path, index=False)
+    benchmark = pd.DataFrame(benchmark_rows)
+    benchmark.to_csv(benchmark_path, index=False)
+    manifest_path = write_data_manifest(
+        build_data_manifest(
+            source_name="sample_data",
+            bars=bars_frame,
+            benchmark=benchmark,
+            trading_calendar=trading_calendar,
+            universe=universe,
+            adjustment_factors=adjustment_factors,
+            source_details={
+                "generator": "scripts/create_sample_data.py",
+                "random_seed": 42,
+            },
+        ),
+        Path("data/raw/dataset_manifest.json"),
+    )
     print(f"Wrote {len(rows)} daily bar rows to {output_path}")
     print(f"Wrote {len(rows)} adjustment factor rows to {adjustment_factor_path}")
     print(f"Wrote {len(dates)} trading calendar rows to {trading_calendar_path}")
     print(f"Wrote {len(universe_rows)} universe rows to {universe_path}")
     print(f"Wrote {len(benchmark_rows)} benchmark rows to {benchmark_path}")
+    print(f"Wrote dataset manifest to {manifest_path}")
 
 
 if __name__ == "__main__":

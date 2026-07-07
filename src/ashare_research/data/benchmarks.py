@@ -5,6 +5,14 @@ from pathlib import Path
 import pandas as pd
 
 from ashare_research.contracts.schemas import BENCHMARK_SOURCE_SCHEMA
+from ashare_research.contracts.validation import (
+    validate_columns_not_null,
+    validate_non_empty_frame,
+    validate_numeric_column_positive,
+    validate_primary_keys_unique,
+    validate_required_columns,
+    validate_string_column_not_blank,
+)
 
 REQUIRED_BENCHMARK_COLUMNS = BENCHMARK_SOURCE_SCHEMA.required_field_set
 
@@ -17,6 +25,11 @@ def load_benchmark_returns(
     """Load benchmark closes and convert them into next-day close returns."""
     data_path = Path(path)
     benchmark = pd.read_csv(data_path, parse_dates=["date"])
+    benchmark["date"] = pd.to_datetime(benchmark["date"], errors="coerce")
+    if "close" in benchmark.columns:
+        benchmark["close"] = pd.to_numeric(benchmark["close"], errors="coerce")
+    if "symbol" in benchmark.columns:
+        benchmark["symbol"] = benchmark["symbol"].astype("string").str.strip()
     validate_benchmark_bars(benchmark)
 
     benchmark = benchmark.sort_values("date").reset_index(drop=True)
@@ -31,14 +44,10 @@ def load_benchmark_returns(
 
 
 def validate_benchmark_bars(benchmark: pd.DataFrame) -> None:
-    missing = REQUIRED_BENCHMARK_COLUMNS.difference(benchmark.columns)
-    if missing:
-        raise ValueError(f"Benchmark data is missing required columns: {sorted(missing)}")
-
-    if benchmark.empty:
-        raise ValueError("Benchmark data is empty.")
-
-    duplicated = benchmark.duplicated(["date"])
-    if duplicated.any():
-        sample = benchmark.loc[duplicated, ["date"]].head().to_dict("records")
-        raise ValueError(f"Benchmark data contains duplicate dates: {sample}")
+    validate_required_columns(benchmark, BENCHMARK_SOURCE_SCHEMA)
+    validate_non_empty_frame(benchmark, BENCHMARK_SOURCE_SCHEMA)
+    validate_primary_keys_unique(benchmark, BENCHMARK_SOURCE_SCHEMA)
+    validate_columns_not_null(benchmark, BENCHMARK_SOURCE_SCHEMA, ["date", "close"])
+    validate_numeric_column_positive(benchmark, BENCHMARK_SOURCE_SCHEMA, "close")
+    if "symbol" in benchmark.columns:
+        validate_string_column_not_blank(benchmark, BENCHMARK_SOURCE_SCHEMA, "symbol")

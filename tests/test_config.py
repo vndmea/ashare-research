@@ -15,6 +15,8 @@ def test_parse_config_builds_typed_models() -> None:
                 "position_sizing_method": "signal_weight",
                 "rebalance_frequency": "weekly",
                 "min_holding_days": 3,
+                "slippage_rate": 0.0002,
+                "max_volume_participation": 0.15,
             },
             "strategy": {
                 "name": "moving_average_crossover",
@@ -32,5 +34,31 @@ def test_parse_config_builds_typed_models() -> None:
     assert config.backtest.max_names == 10
     assert config.backtest.position_sizing_method == "signal_weight"
     assert config.backtest.rebalance_frequency == "weekly"
+    assert config.backtest.slippage_rate == 0.0002
+    assert config.backtest.max_volume_participation == 0.15
     assert config.strategy.name == "moving_average_crossover"
+    assert config.strategy.parameters["fast_window"] == 5
+    assert config.strategy.parameters["slow_window"] == 20
     assert config.report.output_dir == "reports/test_run"
+
+
+def test_parse_config_supports_generic_strategy_parameters() -> None:
+    config = parse_config(
+        {
+            "data": {
+                "daily_bar_path": "data/raw/daily_bars.csv",
+            },
+            "backtest": {},
+            "strategy": {
+                "name": "relative_strength",
+                "lookback_window": 30,
+                "min_positive_return": 0.02,
+            },
+        }
+    )
+
+    assert config.strategy.name == "relative_strength"
+    assert config.strategy.parameters == {
+        "lookback_window": 30,
+        "min_positive_return": 0.02,
+    }

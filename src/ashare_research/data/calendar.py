@@ -5,17 +5,22 @@ from pathlib import Path
 import pandas as pd
 
 from ashare_research.contracts.schemas import TRADING_CALENDAR_SOURCE_SCHEMA
+from ashare_research.contracts.validation import (
+    validate_columns_not_null,
+    validate_non_empty_frame,
+    validate_required_columns,
+)
 
 
 def load_trading_calendar(path: str | Path) -> pd.DatetimeIndex:
     """Load a trading calendar CSV with a `date` column."""
     calendar_path = Path(path)
     calendar = pd.read_csv(calendar_path, parse_dates=["date"])
-    if "date" not in TRADING_CALENDAR_SOURCE_SCHEMA.required_field_set.intersection(calendar.columns):
-        raise ValueError("Trading calendar is missing a date column.")
+    calendar["date"] = pd.to_datetime(calendar["date"], errors="coerce")
+    validate_required_columns(calendar, TRADING_CALENDAR_SOURCE_SCHEMA)
+    validate_non_empty_frame(calendar, TRADING_CALENDAR_SOURCE_SCHEMA)
+    validate_columns_not_null(calendar, TRADING_CALENDAR_SOURCE_SCHEMA, ["date"])
     dates = pd.DatetimeIndex(calendar["date"].drop_duplicates().sort_values())
-    if dates.empty:
-        raise ValueError("Trading calendar is empty.")
     return dates
 
 

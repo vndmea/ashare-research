@@ -8,6 +8,7 @@ import pandas as pd
 
 from ashare_research.analysis.attribution import build_strategy_attribution_report
 from ashare_research.analysis.metrics import PerformanceMetrics
+from ashare_research.backtest.accounting import daily_symbol_returns
 
 ROLLING_WINDOWS = (20, 60)
 
@@ -22,6 +23,10 @@ class ReportPaths:
     industry_exposure: Path
     strategy_attribution: Path
     positions: Path
+    execution_diagnostics: Path
+    trade_ledger: Path
+    position_contribution: Path
+    turnover_breakdown: Path
 
 
 def build_drawdown_report(equity_curve: pd.DataFrame) -> pd.DataFrame:
@@ -141,6 +146,54 @@ def build_industry_exposure_report(
     return report.sort_values(["date", "exposure", "group_name"], ascending=[True, False, True]).reset_index(drop=True)
 
 
+def build_position_contribution_report(
+    positions: pd.DataFrame,
+    bars: pd.DataFrame,
+) -> pd.DataFrame:
+    columns = ["date", "symbol", "weight", "return", "contribution", "group_name"]
+    if positions.empty or bars.empty or "close" not in bars.columns:
+        return pd.DataFrame(columns=columns)
+
+    returns = daily_symbol_returns(bars)
+    contribution = positions.merge(returns, on=["date", "symbol"], how="left")
+    contribution["return"] = contribution["return"].fillna(0.0)
+    contribution["contribution"] = contribution["weight"] * contribution["return"]
+    group_column = _group_column(bars)
+    if group_column is not None:
+        contribution = contribution.merge(
+            bars[["date", "symbol", group_column]].drop_duplicates(),
+            on=["date", "symbol"],
+            how="left",
+        )
+        contribution["group_name"] = contribution[group_column].fillna("").replace("", "Unclassified")
+    else:
+        contribution["group_name"] = "Unclassified"
+    return contribution[columns].sort_values(["date", "contribution", "symbol"], ascending=[True, False, True]).reset_index(drop=True)
+
+
+def build_turnover_breakdown_report(equity_curve: pd.DataFrame) -> pd.DataFrame:
+    columns = [
+        "date",
+        "turnover",
+        "buy_turnover",
+        "sell_turnover",
+        "commission",
+        "slippage",
+        "tax",
+        "total_cost",
+    ]
+    if equity_curve.empty:
+        return pd.DataFrame(columns=columns)
+
+    turnover = equity_curve[["date", "turnover", "sell_turnover"]].copy()
+    turnover["buy_turnover"] = (turnover["turnover"] - turnover["sell_turnover"]).clip(lower=0.0)
+    turnover["commission"] = equity_curve.get("commission", pd.Series(0.0, index=equity_curve.index))
+    turnover["slippage"] = equity_curve.get("slippage", pd.Series(0.0, index=equity_curve.index))
+    turnover["tax"] = equity_curve.get("tax", pd.Series(0.0, index=equity_curve.index))
+    turnover["total_cost"] = turnover["commission"] + turnover["slippage"] + turnover["tax"]
+    return turnover[columns].sort_values("date").reset_index(drop=True)
+
+
 def write_research_report(
     output_dir: str | Path,
     equity_curve: pd.DataFrame,
@@ -148,6 +201,8 @@ def write_research_report(
     metrics: PerformanceMetrics,
     bars: pd.DataFrame | None = None,
     benchmark_returns: pd.DataFrame | None = None,
+    execution_diagnostics: pd.DataFrame | None = None,
+    trade_ledger: pd.DataFrame | None = None,
 ) -> ReportPaths:
     """Write summary, equity, drawdown, rolling, monthly, exposure, and position CSV reports."""
     report_dir = Path(output_dir)
@@ -161,6 +216,10 @@ def write_research_report(
     industry_exposure_path = report_dir / "industry_exposure.csv"
     strategy_attribution_path = report_dir / "strategy_attribution.csv"
     positions_path = report_dir / "positions.csv"
+    execution_diagnostics_path = report_dir / "execution_diagnostics.csv"
+    trade_ledger_path = report_dir / "trade_ledger.csv"
+    position_contribution_path = report_dir / "position_contribution.csv"
+    turnover_breakdown_path = report_dir / "turnover_breakdown.csv"
 
     pd.DataFrame([metrics.to_dict()]).to_csv(summary_path, index=False)
     _equity_curve_with_benchmark(equity_curve, benchmark_returns).to_csv(
@@ -182,7 +241,20 @@ def write_research_report(
         bars if bars is not None else pd.DataFrame(),
         equity_curve,
     ).to_csv(strategy_attribution_path, index=False)
+    build_position_contribution_report(
+        positions,
+        bars if bars is not None else pd.DataFrame(),
+    ).to_csv(position_contribution_path, index=False)
+    build_turnover_breakdown_report(equity_curve).to_csv(turnover_breakdown_path, index=False)
     positions.to_csv(positions_path, index=False)
+    (execution_diagnostics if execution_diagnostics is not None else pd.DataFrame()).to_csv(
+        execution_diagnostics_path,
+        index=False,
+    )
+    (trade_ledger if trade_ledger is not None else pd.DataFrame()).to_csv(
+        trade_ledger_path,
+        index=False,
+    )
 
     return ReportPaths(
         summary=summary_path,
@@ -193,6 +265,10 @@ def write_research_report(
         industry_exposure=industry_exposure_path,
         strategy_attribution=strategy_attribution_path,
         positions=positions_path,
+        execution_diagnostics=execution_diagnostics_path,
+        trade_ledger=trade_ledger_path,
+        position_contribution=position_contribution_path,
+        turnover_breakdown=turnover_breakdown_path,
     )
 
 

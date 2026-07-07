@@ -5,7 +5,11 @@ from dataclasses import dataclass
 import pandas as pd
 
 from ashare_research.analysis.metrics import PerformanceMetrics, calculate_metrics
-from ashare_research.backtest.accounting import build_portfolio_equity_curve, daily_symbol_returns
+from ashare_research.backtest.accounting import (
+    build_portfolio_equity_curve,
+    build_trade_ledger,
+    daily_symbol_returns,
+)
 from ashare_research.backtest.schedule import RebalanceFrequency, apply_rebalance_schedule, resolve_trading_dates
 from ashare_research.risk.position_sizing import PositionSizingMethod, build_target_positions
 from ashare_research.risk.tradeability import (
@@ -20,6 +24,8 @@ from ashare_research.risk.tradeability import (
 class BacktestResult:
     equity_curve: pd.DataFrame
     positions: pd.DataFrame
+    trade_ledger: pd.DataFrame
+    execution_diagnostics: pd.DataFrame
     metrics: PerformanceMetrics
 
 
@@ -37,6 +43,7 @@ def run_close_to_close_backtest(
     trading_calendar: pd.DatetimeIndex | None = None,
     universe: pd.DataFrame | None = None,
     trade_constraints: TradeConstraints | None = None,
+    slippage_rate: float = 0.0,
 ) -> BacktestResult:
     """Run a simple close-to-close daily portfolio backtest.
 
@@ -62,14 +69,26 @@ def run_close_to_close_backtest(
         rebalance_frequency=rebalance_frequency,
         min_holding_days=min_holding_days,
     )
-    positions = apply_trade_constraints(target_weights, bars, trading_dates, constraints)
+    execution = apply_trade_constraints(
+        target_weights,
+        bars,
+        trading_dates,
+        constraints,
+        reference_cash=initial_cash,
+    )
     portfolio_returns = build_portfolio_equity_curve(
-        positions,
+        execution.positions,
         returns,
         trading_dates,
         initial_cash=initial_cash,
         commission_rate=commission_rate,
         stamp_tax_rate=stamp_tax_rate,
+        slippage_rate=slippage_rate,
+    )
+    trade_ledger = build_trade_ledger(
+        execution.execution_diagnostics,
+        portfolio_returns,
+        initial_cash=initial_cash,
     )
 
     metrics = calculate_metrics(
@@ -79,6 +98,8 @@ def run_close_to_close_backtest(
     )
     return BacktestResult(
         equity_curve=portfolio_returns,
-        positions=positions,
+        positions=execution.positions,
+        trade_ledger=trade_ledger,
+        execution_diagnostics=execution.execution_diagnostics,
         metrics=metrics,
     )

@@ -17,6 +17,7 @@ def build_portfolio_equity_curve(
     initial_cash: float,
     commission_rate: float,
     stamp_tax_rate: float,
+    slippage_rate: float = 0.0,
 ) -> pd.DataFrame:
     portfolio = positions.merge(returns, on=["date", "symbol"], how="left").fillna({"return": 0.0})
     portfolio["weighted_return"] = portfolio["weight"] * portfolio["return"]
@@ -37,13 +38,72 @@ def build_portfolio_equity_curve(
     )
     equity_curve = equity_curve.sort_values("date").reset_index(drop=True)
     equity_curve["cash_weight"] = (1.0 - equity_curve["gross_exposure"]).clip(lower=0.0)
-    equity_curve["cost"] = equity_curve["turnover"] * commission_rate
+    equity_curve["commission"] = equity_curve["turnover"] * commission_rate
+    equity_curve["slippage"] = equity_curve["turnover"] * slippage_rate
+    equity_curve["cost"] = equity_curve["commission"] + equity_curve["slippage"]
     equity_curve["tax"] = equity_curve["sell_turnover"] * stamp_tax_rate
     equity_curve["net_return"] = (
         equity_curve["gross_return"] - equity_curve["cost"] - equity_curve["tax"]
     )
     equity_curve["equity"] = initial_cash * (1.0 + equity_curve["net_return"]).cumprod()
     return equity_curve
+
+
+def build_trade_ledger(
+    execution_diagnostics: pd.DataFrame,
+    equity_curve: pd.DataFrame,
+    *,
+    initial_cash: float,
+) -> pd.DataFrame:
+    columns = [
+        "date",
+        "symbol",
+        "side",
+        "previous_weight",
+        "target_weight",
+        "executed_weight",
+        "weight_delta",
+        "reference_equity",
+        "trade_notional",
+        "blocked_reason",
+    ]
+    if execution_diagnostics.empty:
+        return pd.DataFrame(columns=columns)
+
+    diagnostics = execution_diagnostics.copy()
+    diagnostics["date"] = pd.to_datetime(diagnostics["date"], errors="raise")
+    diagnostics["weight_delta"] = pd.to_numeric(
+        diagnostics["executed_trade_weight"],
+        errors="coerce",
+    ).fillna(0.0)
+    trades = diagnostics[diagnostics["weight_delta"].ne(0.0)].copy()
+    if trades.empty:
+        return pd.DataFrame(columns=columns)
+
+    equity_reference = equity_curve[["date", "equity"]].copy()
+    equity_reference["reference_equity"] = equity_reference["equity"].shift(1).fillna(initial_cash)
+    trades = trades.merge(
+        equity_reference[["date", "reference_equity"]],
+        on="date",
+        how="left",
+    )
+    trades["reference_equity"] = trades["reference_equity"].fillna(initial_cash)
+    trades["side"] = trades["weight_delta"].apply(lambda value: "buy" if value > 0.0 else "sell")
+    trades["trade_notional"] = trades["weight_delta"].abs() * trades["reference_equity"]
+    return trades[
+        [
+            "date",
+            "symbol",
+            "side",
+            "previous_weight",
+            "target_weight",
+            "executed_weight",
+            "weight_delta",
+            "reference_equity",
+            "trade_notional",
+            "blocked_reason",
+        ]
+    ].sort_values(["date", "symbol"]).reset_index(drop=True)
 
 
 def daily_turnover(weights: pd.DataFrame) -> pd.DataFrame:

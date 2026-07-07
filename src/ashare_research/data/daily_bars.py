@@ -5,6 +5,15 @@ from pathlib import Path
 import pandas as pd
 
 from ashare_research.contracts.schemas import BARS_SCHEMA, DAILY_BARS_SOURCE_SCHEMA
+from ashare_research.contracts.validation import (
+    validate_columns_not_null,
+    validate_non_empty_frame,
+    validate_numeric_column_non_negative,
+    validate_numeric_column_positive,
+    validate_primary_keys_unique,
+    validate_required_columns,
+    validate_string_column_not_blank,
+)
 from ashare_research.data.adjustments import (
     apply_price_adjustment,
     load_adjustment_factors,
@@ -25,6 +34,11 @@ BOOLEAN_DAILY_BAR_COLUMNS = {
 }
 
 NUMERIC_DAILY_BAR_COLUMNS = {
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
     "amount",
     "adj_factor",
 }
@@ -65,17 +79,29 @@ def load_daily_bars(
 
 
 def validate_daily_bars(bars: pd.DataFrame) -> None:
-    missing = REQUIRED_DAILY_BAR_COLUMNS.difference(bars.columns)
-    if missing:
-        raise ValueError(f"Daily bars are missing required columns: {sorted(missing)}")
+    validate_required_columns(bars, DAILY_BARS_SOURCE_SCHEMA)
+    validate_non_empty_frame(bars, DAILY_BARS_SOURCE_SCHEMA)
+    validate_primary_keys_unique(bars, DAILY_BARS_SOURCE_SCHEMA)
+    validate_columns_not_null(
+        bars,
+        DAILY_BARS_SOURCE_SCHEMA,
+        ["date", "symbol", "open", "high", "low", "close", "volume"],
+    )
+    validate_string_column_not_blank(bars, DAILY_BARS_SOURCE_SCHEMA, "symbol")
 
-    if bars.empty:
-        raise ValueError("Daily bars are empty.")
+    for column in ("open", "high", "low", "close"):
+        validate_numeric_column_positive(bars, DAILY_BARS_SOURCE_SCHEMA, column)
+    for column in ("volume", "amount"):
+        validate_numeric_column_non_negative(bars, DAILY_BARS_SOURCE_SCHEMA, column)
+    if "adj_factor" in bars.columns:
+        validate_numeric_column_positive(bars, DAILY_BARS_SOURCE_SCHEMA, "adj_factor")
 
-    duplicated = bars.duplicated(["date", "symbol"])
-    if duplicated.any():
-        sample = bars.loc[duplicated, ["date", "symbol"]].head().to_dict("records")
-        raise ValueError(f"Daily bars contain duplicate date/symbol rows: {sample}")
+    if (bars["high"] < bars["low"]).any():
+        raise ValueError("daily_bars_csv.high must be greater than or equal to low.")
+    if (bars["high"] < bars[["open", "close"]].max(axis=1)).any():
+        raise ValueError("daily_bars_csv.high cannot be below open or close.")
+    if (bars["low"] > bars[["open", "close"]].min(axis=1)).any():
+        raise ValueError("daily_bars_csv.low cannot be above open or close.")
 
 
 def coerce_daily_bar_types(bars: pd.DataFrame) -> pd.DataFrame:

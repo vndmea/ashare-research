@@ -30,6 +30,7 @@ notebook = [
 
 [project.scripts]
 ashare-run-backtest = "ashare_research.cli:run_backtest"
+ashare-validate-data = "ashare_research.cli:validate_data"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ashare_research"]

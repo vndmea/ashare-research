@@ -166,6 +166,53 @@ def test_min_holding_days_prevents_early_exit() -> None:
     assert dates[4] not in held_dates
 
 
+def test_slippage_rate_increases_costs() -> None:
+    dates = pd.bdate_range("2024-01-01", periods=4)
+    bars = _bars(dates, ["000001.SZ"])
+    signals = pd.DataFrame(
+        {
+            "date": dates,
+            "symbol": ["000001.SZ"] * len(dates),
+            "signal": [1.0, 1.0, 1.0, 1.0],
+        }
+    )
+
+    without_slippage = run_close_to_close_backtest(bars, signals)
+    with_slippage = run_close_to_close_backtest(bars, signals, slippage_rate=0.001)
+
+    assert with_slippage.equity_curve["slippage"].sum() > 0.0
+    assert with_slippage.equity_curve["cost"].sum() > without_slippage.equity_curve["cost"].sum()
+
+
+def test_capacity_limit_caps_first_day_weight_and_records_reason() -> None:
+    dates = pd.bdate_range("2024-01-01", periods=4)
+    bars = _bars(dates, ["000001.SZ"])
+    bars["amount"] = 100_000.0
+    signals = pd.DataFrame(
+        {
+            "date": dates,
+            "symbol": ["000001.SZ"] * len(dates),
+            "signal": [1.0, 1.0, 1.0, 1.0],
+        }
+    )
+
+    result = run_close_to_close_backtest(
+        bars,
+        signals,
+        initial_cash=1_000_000.0,
+        trade_constraints=TradeConstraints(max_volume_participation=0.5),
+    )
+
+    first_day = result.positions[result.positions["date"] == dates[0]]
+    first_diag = result.execution_diagnostics[
+        (result.execution_diagnostics["date"] == dates[0])
+        & (result.execution_diagnostics["symbol"] == "000001.SZ")
+    ].iloc[0]
+
+    assert first_day["weight"].iloc[0] == 0.05
+    assert "capacity_limited" in first_diag["blocked_reason"]
+
+
 def _bars(dates: pd.DatetimeIndex, symbols: list[str]) -> pd.DataFrame:
     rows = []
     for symbol_index, symbol in enumerate(symbols):
