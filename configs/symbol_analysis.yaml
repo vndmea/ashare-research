@@ -1,6 +1,6 @@
 data:
   daily_bar_path: data/raw/daily_bars.csv
-  benchmark_path:
+  benchmark_path: data/raw/benchmark.csv
   trading_calendar_path: data/raw/trading_calendar.csv
   universe_path: data/raw/universe.csv
   adjustment_factor_path:

@@ -281,10 +281,10 @@ def _ratio_vs_ma(latest_row: pd.Series, ma_column: str) -> float | None:
 
 def _decision_from_score(total_score: int, technical_config: TechnicalAnalysisConfig) -> str:
     if total_score >= technical_config.buy_score_threshold:
-        return "buy"
+        return "偏买入"
     if total_score >= technical_config.hold_score_threshold:
-        return "hold"
-    return "sell"
+        return "偏持有"
+    return "偏卖出"
 
 
 def _decision_reason(

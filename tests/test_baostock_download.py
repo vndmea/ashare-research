@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pandas as pd
 
-from ashare_research.data.baostock import normalize_baostock_daily_bars
+from ashare_research.data.baostock import (
+    normalize_baostock_benchmark_bars,
+    normalize_baostock_daily_bars,
+)
 
 
 def test_normalize_baostock_daily_bars() -> None:
@@ -34,3 +37,19 @@ def test_normalize_baostock_daily_bars() -> None:
     assert bars.loc[0, "symbol"] == "600000.SH"
     assert bars.loc[1, "symbol"] == "000001.SZ"
     assert bars.loc[0, "volume"] == 1_000_000
+
+
+def test_normalize_baostock_benchmark_bars() -> None:
+    raw = pd.DataFrame(
+        {
+            "date": ["2024-01-02", "2024-01-03"],
+            "symbol": ["sh.000300", "sh.000300"],
+            "close": ["3500.1", "3510.2"],
+        }
+    )
+
+    benchmark = normalize_baostock_benchmark_bars(raw)
+
+    assert list(benchmark.columns) == ["date", "symbol", "close"]
+    assert benchmark.loc[0, "symbol"] == "000300.SH"
+    assert benchmark.loc[1, "close"] == 3510.2

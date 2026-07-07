@@ -217,6 +217,16 @@ def test_load_symbol_analysis_inputs_tolerates_missing_benchmark_dates(tmp_path)
     assert not inputs.bars.empty
 
 
+def test_load_symbol_analysis_inputs_keeps_overlapping_benchmark(tmp_path) -> None:
+    paths = _write_research_input_files(tmp_path)
+    config = _config_for_paths(paths)
+
+    inputs = load_symbol_analysis_inputs(config)
+
+    assert inputs.benchmark_returns is not None
+    assert not inputs.benchmark_returns.empty
+
+
 def _write_research_input_files(
     tmp_path,
     *,

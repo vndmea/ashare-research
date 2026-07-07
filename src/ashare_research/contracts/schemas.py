@@ -273,7 +273,7 @@ POSITION_CONTRIBUTION_SCHEMA = DatasetSchema(
 
 SYMBOL_TECHNICAL_ANALYSIS_SCHEMA = DatasetSchema(
     name="symbol_technical_analysis",
-    description="Latest single-stock technical analysis snapshot with score-based buy/hold/sell decision.",
+    description="Latest single-stock technical analysis snapshot with score-based Chinese decision labels.",
     primary_keys=("symbol",),
     producer_modules=("ashare_research.analysis.technical", "ashare_research.analysis.reports"),
     consumer_modules=("ashare_research.cli", "dashboard.py"),
@@ -299,8 +299,8 @@ SYMBOL_TECHNICAL_ANALYSIS_SCHEMA = DatasetSchema(
         _field("relative_strength_score", "int", True, "Relative strength confirmation sub-score."),
         _field("risk_penalty", "int", True, "Risk deductions from pullback and drawdown conditions."),
         _field("total_score", "int", True, "Aggregate score used for final decision."),
-        _field("decision", "string", True, "Final score-based decision: buy, hold, or sell."),
-        _field("decision_reason", "string", True, "Semicolon-delimited reason tokens for the decision."),
+        _field("decision", "string", True, "Final score-based decision: 偏买入, 偏持有, or 偏卖出."),
+        _field("decision_reason", "string", True, "Chinese semicolon-delimited explanation for the decision."),
     ),
 )
 

@@ -47,12 +47,15 @@
 - 当前真正仍需外部或决策确认的项，主要只剩“真实供应数据默认接入到哪一家/哪一套”和“初始版本提交摘要怎么定稿”。
 - 本轮已经实测 `baostock` 可在当前网络和 Python 环境中完成登录与日线查询，说明它可以作为免费真实 A 股数据的默认起步源。
 - 当前仓库已新增 `scripts/download_baostock_data.py`，能够将 `baostock` 数据统一落盘为 `daily_bars.csv / trading_calendar.csv / universe.csv / dataset_manifest.json`，延续现有数据契约与 manifest 体系。
+- 当前仓库已将 `baostock` 默认落盘扩展为 `daily_bars.csv / benchmark.csv / trading_calendar.csv / universe.csv / dataset_manifest.json`，个股相对强弱分析不再需要手工准备 benchmark 文件。
 - `baostock` 下载器默认通过 `query_stock_basic()` 获取 A 股正股清单，避免把指数等非目标证券混进研究底座。
 - 当前仍未补完的是更高质量的历史复权与更稳定的正式交易日历，这些仍属于后续增强而不是当前阻塞。
 - 当前已新增统一的一键入口 `ashare-bootstrap-baostock`，可以完成“下载 -> 预检 -> 回测 -> 导出报表”。
 - 当前已新增 `configs/baostock.yaml` 作为 Baostock 默认研究模板，后续可以直接作为真实数据起跑配置。
 - 当前“单票买入/持有/卖出研究判断”已经正式接入项目主干，不再依赖临时脚本；入口为 `ashare-analyze-symbols`，输出为 `symbol_technical_analysis.csv`。
 - 当前单票技术分析明确复用统一 loader、配置系统、contracts 和报告目录，但不强行复用回测前的全部硬校验，因此更适合作为独立研究模块。
+- 当前 symbol analysis 的 benchmark 对齐已经调整为“保留重叠区间、无重叠则降级为 None”，因此真实下载的 benchmark 数据可以稳定支撑 `relative_strength_250d` 产出。
+- 在当前 Windows 环境里，`python -m pip install -e .` 可能因旧的 `ashare-bootstrap-baostock.exe` 被占用而失败；这属于脚本占用问题，不影响通过 `PYTHONPATH=src` 验证源码链路。
 
 ## 技术决策
 | 决策 | 理由 |
@@ -68,6 +71,7 @@
 | 将 `baostock` 作为默认免费真实数据起点 | 已实测可用，且最适合当前“样例替换为真实日线”的阶段目标 |
 | 增加统一 bootstrap 命令 | 降低“下载、预检、回测”分步操作成本，减少入口分叉 |
 | 将单票技术分析放在报表层而不是策略层 | 这是研究诊断能力，不是交易信号生成器，放在报表层更符合当前中轴设计 |
+| symbol analysis 对 benchmark 采用“重叠裁剪”而非研究主回测的硬对齐规则 | 个股分析更需要尽量消费真实基准数据，而不是因为末端日期错位直接失败 |
 
 ## 遇到的问题
 | 问题 | 解决方案 |

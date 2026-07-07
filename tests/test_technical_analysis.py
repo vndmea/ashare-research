@@ -44,11 +44,12 @@ def test_build_symbol_technical_analysis_report_scores_symbols() -> None:
     )
 
     assert list(report["symbol"]) == ["300059.SZ", "603589.SH"]
-    assert report.loc[report["symbol"] == "300059.SZ", "decision"].iloc[0] == "buy"
-    assert report.loc[report["symbol"] == "603589.SH", "decision"].iloc[0] == "sell"
+    assert report.loc[report["symbol"] == "300059.SZ", "decision"].iloc[0] == "偏买入"
+    assert report.loc[report["symbol"] == "603589.SH", "decision"].iloc[0] == "偏卖出"
     assert report.loc[report["symbol"] == "300059.SZ", "total_score"].iloc[0] > report.loc[
         report["symbol"] == "603589.SH", "total_score"
     ].iloc[0]
+    assert report["relative_strength_250d"].notna().all()
 
 
 def test_build_symbol_technical_analysis_report_rejects_missing_symbols() -> None:

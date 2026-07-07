@@ -212,8 +212,7 @@ def load_symbol_analysis_inputs(config: ResearchConfig) -> ResearchInputs:
         universe=None,
         benchmark_returns=_load_optional_benchmark_for_symbol_analysis(config, bars),
     )
-    validate_symbol_analysis_input_alignment(inputs)
-    return inputs
+    return validate_symbol_analysis_input_alignment(inputs)
 
 
 def validate_research_input_alignment(inputs: ResearchInputs) -> None:
@@ -231,14 +230,21 @@ def validate_research_input_alignment(inputs: ResearchInputs) -> None:
         _validate_universe_alignment(inputs.bars, bar_dates, inputs.universe)
 
 
-def validate_symbol_analysis_input_alignment(inputs: ResearchInputs) -> None:
+def validate_symbol_analysis_input_alignment(inputs: ResearchInputs) -> ResearchInputs:
     bar_dates = pd.DatetimeIndex(
         pd.to_datetime(inputs.bars["date"], errors="raise").drop_duplicates().sort_values()
     )
     if bar_dates.empty:
         raise ValueError("bars do not contain any trading dates.")
     if inputs.benchmark_returns is not None:
-        _validate_symbol_analysis_benchmark_alignment(bar_dates, inputs.benchmark_returns)
+        return replace(
+            inputs,
+            benchmark_returns=_align_symbol_analysis_benchmark(
+                bar_dates,
+                inputs.benchmark_returns,
+            ),
+        )
+    return inputs
 
 
 def _run_strategy(config: ResearchConfig, bars: pd.DataFrame) -> pd.DataFrame:
@@ -339,17 +345,20 @@ def _validate_benchmark_alignment(
     )
 
 
-def _validate_symbol_analysis_benchmark_alignment(
+def _align_symbol_analysis_benchmark(
     bar_dates: pd.DatetimeIndex,
     benchmark_returns: pd.DataFrame,
-) -> None:
+) -> pd.DataFrame | None:
     actual_dates = pd.DatetimeIndex(
         pd.to_datetime(benchmark_returns["date"], errors="raise").drop_duplicates().sort_values()
     )
     expected_dates = bar_dates[:-1]
     overlapping_dates = actual_dates.intersection(expected_dates)
     if overlapping_dates.empty:
-        raise ValueError("benchmark_returns does not overlap with symbol analysis bars.")
+        return None
+    return benchmark_returns.loc[
+        pd.to_datetime(benchmark_returns["date"], errors="raise").isin(overlapping_dates)
+    ].reset_index(drop=True)
 
 
 def _validate_universe_alignment(

@@ -116,6 +116,10 @@
   - 扩展 `dashboard.py`，增加“个股”页签，消费统一 `symbol_technical_analysis.csv`
   - 新增 `tests/test_technical_analysis.py`，并扩展 config / pipeline / contracts / report 回归测试
   - 实际运行 `ashare-analyze-symbols --config configs/symbol_analysis.yaml --symbols 300059.SZ,603986.SH,002714.SZ --output-dir reports/symbol_analysis_test`，成功输出正式个股技术分析报告
+  - 将 `baostock` 默认下载链路扩展为同时落盘 `benchmark.csv`，使相对强弱分析不再依赖手工补基准文件
+  - 调整 `load_symbol_analysis_inputs()` 的基准对齐逻辑，仅保留与个股分析区间重叠的 benchmark returns，并通过返回新 `ResearchInputs` 避免修改 frozen dataclass
+  - 补充 benchmark 标准化、symbol analysis benchmark 保留与 `relative_strength_250d` 非空回归测试
+  - 使用源码路径方式验证真实数据链路：`load_symbol_analysis_inputs()` 已能读入 `data/raw/benchmark.csv`，`relative_strength_250d` 对 300059.SZ、603986.SH、002714.SZ 均成功产出非空值
   - 更新 task_plan.md / findings.md，将真实 A 股日线替代样例数据标记为已完成
 - 创建/修改的文件：
   - src/ashare_research/contracts/__init__.py
@@ -186,12 +190,15 @@
 | Baostock 符号标准化 | `normalize_baostock_symbol()` | 项目格式与 baostock 格式互转 | 已通过手工验证 | 通过 |
 | 单票技术分析回归 | `pytest` | 配置、contracts、pipeline、report、评分逻辑可稳定运行 | 22 passed | 通过 |
 | 单票技术分析正式命令 | `ashare-analyze-symbols ...` | 输出 `symbol_technical_analysis.csv` | 已通过 | 通过 |
+| benchmark 对齐与相对强弱回归 | `pytest tests/test_baostock_download.py tests/test_pipeline.py tests/test_technical_analysis.py -q` | 基准下载、输入对齐与 `relative_strength_250d` 非空 | 11 passed | 通过 |
+| 真实 symbol analysis 基准接入验证 | `PYTHONPATH=src` 下执行 `load_symbol_analysis_inputs()` 与 `build_symbol_technical_analysis_report()` | 真实 `benchmark.csv` 被消费且 `relative_strength_250d` 非空 | 已输出 3 只股票非空相对强弱 | 通过 |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
 |--------|------|---------|---------|
 | 2026-07-07 | Get-ChildItem -Filter 误传数组导致 PowerShell 报错 | 1 | 不再用数组传 -Filter，改为直接创建规划文件 |
 | 2026-07-07 | 桌面版 apply_patch 临时执行链路访问被拒绝 | 1 | 改用本地文件写入兜底，并记录为环境限制 |
+| 2026-07-07 | `python -m pip install -e .` 卸载旧 `ashare-bootstrap-baostock.exe` 时出现 WinError 5 拒绝访问 | 1 | 改用 `PYTHONPATH=src` 继续验证源码链路，判断为 Windows 脚本占用而非代码逻辑故障 |
 
 ## 五问重启检查
 | 问题 | 答案 |

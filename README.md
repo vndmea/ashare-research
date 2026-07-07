@@ -109,7 +109,7 @@ Override symbols from the command line when needed:
 ashare-analyze-symbols --config configs/symbol_analysis.yaml --symbols 300059.SZ,603986.SH,002714.SZ
 ```
 
-This command writes `symbol_technical_analysis.csv` to the configured report directory. The current decision is a score-based technical view built from trend, volume confirmation, relative strength, and pullback risk; it is a research aid, not investment advice.
+This command writes `symbol_technical_analysis.csv` to the configured report directory. The current decision uses Chinese labels such as `偏买入 / 偏持有 / 偏卖出`, and is a score-based technical view built from trend, volume confirmation, relative strength, and pullback risk; it is a research aid, not investment advice.
 
 ## Download Real Data
 
@@ -151,9 +151,12 @@ python scripts/download_baostock_data.py --start-date 2024-01-01 --end-date 2024
 This script writes the same normalized project files and manifest:
 
 - `data/raw/daily_bars.csv`
+- `data/raw/benchmark.csv`
 - `data/raw/trading_calendar.csv`
 - `data/raw/universe.csv`
 - `data/raw/dataset_manifest.json`
+
+By default, the Baostock workflow also downloads a benchmark close series for `000300.SH`, so relative-strength analysis can work out of the box.
 
 Baostock is a better fit for a quick free research start, while Guidebee remains a lightweight public CSV fallback.
 

@@ -24,11 +24,14 @@ BAOSTOCK_OUTPUT_COLUMNS = BAOSTOCK_SOURCE_COLUMNS
 BAOSTOCK_DAILY_FIELDS = ",".join(
     ["date", "code", "open", "high", "low", "close", "volume", "amount"]
 )
+BAOSTOCK_BENCHMARK_FIELDS = ",".join(["date", "code", "close"])
+DEFAULT_BENCHMARK_SYMBOL = "000300.SH"
 
 
 @dataclass(frozen=True)
 class BaostockDownloadResult:
     bars: pd.DataFrame
+    benchmark: pd.DataFrame | None
     trading_calendar: pd.DataFrame
     universe: pd.DataFrame
     manifest_path: Path | None = None
@@ -147,6 +150,7 @@ def build_baostock_download_bundle(
     end_date: str | pd.Timestamp,
     *,
     symbols: list[str] | None = None,
+    benchmark_symbol: str | None = DEFAULT_BENCHMARK_SYMBOL,
     max_workers: int = 4,
     retries: int = 3,
 ) -> BaostockDownloadResult:
@@ -157,12 +161,18 @@ def build_baostock_download_bundle(
         max_workers=max_workers,
         retries=retries,
     )
+    benchmark = (
+        fetch_baostock_benchmark_bars(benchmark_symbol, start_date, end_date, retries=retries)
+        if benchmark_symbol
+        else None
+    )
     trading_calendar = bars[["date"]].drop_duplicates().sort_values("date").reset_index(drop=True)
     universe = bars[["date", "symbol"]].drop_duplicates().sort_values(["date", "symbol"]).reset_index(
         drop=True
     )
     return BaostockDownloadResult(
         bars=bars,
+        benchmark=benchmark,
         trading_calendar=trading_calendar,
         universe=universe,
     )
@@ -172,6 +182,7 @@ def write_baostock_download_bundle(
     bundle: BaostockDownloadResult,
     *,
     output: str | Path,
+    benchmark_output: str | Path | None,
     calendar_output: str | Path,
     universe_output: str | Path,
     manifest_output: str | Path,
@@ -180,6 +191,12 @@ def write_baostock_download_bundle(
     output_path = Path(output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     bundle.bars.to_csv(output_path, index=False, date_format="%Y-%m-%d")
+
+    benchmark_path: Path | None = None
+    if benchmark_output is not None and bundle.benchmark is not None and not bundle.benchmark.empty:
+        benchmark_path = Path(benchmark_output)
+        benchmark_path.parent.mkdir(parents=True, exist_ok=True)
+        bundle.benchmark.to_csv(benchmark_path, index=False, date_format="%Y-%m-%d")
 
     calendar_path = Path(calendar_output)
     calendar_path.parent.mkdir(parents=True, exist_ok=True)
@@ -192,6 +209,7 @@ def write_baostock_download_bundle(
     manifest = build_data_manifest(
         source_name="baostock",
         bars=bundle.bars,
+        benchmark=bundle.benchmark,
         trading_calendar=bundle.trading_calendar,
         universe=bundle.universe,
         source_details=source_details or {},
@@ -199,6 +217,7 @@ def write_baostock_download_bundle(
     manifest_path = write_data_manifest(manifest, manifest_output)
     return BaostockDownloadResult(
         bars=bundle.bars,
+        benchmark=bundle.benchmark,
         trading_calendar=bundle.trading_calendar,
         universe=bundle.universe,
         manifest_path=manifest_path,
@@ -222,6 +241,58 @@ def normalize_baostock_daily_bars(raw_bars: pd.DataFrame) -> pd.DataFrame:
         drop=True
     )
     return bars
+
+
+def fetch_baostock_benchmark_bars(
+    symbol: str,
+    start_date: str | pd.Timestamp,
+    end_date: str | pd.Timestamp,
+    *,
+    retries: int = 3,
+) -> pd.DataFrame | None:
+    code = _to_baostock_symbol(symbol)
+    start = pd.Timestamp(start_date).date().isoformat()
+    end = pd.Timestamp(end_date).date().isoformat()
+
+    with _baostock_session():
+        import baostock as bs
+
+        for attempt in range(1, retries + 1):
+            rs = bs.query_history_k_data_plus(
+                code,
+                BAOSTOCK_BENCHMARK_FIELDS,
+                start_date=start,
+                end_date=end,
+                frequency="d",
+                adjustflag="3",
+            )
+            if rs.error_code != "0":
+                if attempt < retries:
+                    sleep(0.5 * attempt)
+                    continue
+                raise RuntimeError(f"baostock benchmark query failed for {code}: {rs.error_msg}")
+            data = []
+            while rs.next():
+                data.append(rs.get_row_data())
+            if not data:
+                return None
+            return normalize_baostock_benchmark_bars(pd.DataFrame(data, columns=rs.fields))
+    return None
+
+
+def normalize_baostock_benchmark_bars(raw_bars: pd.DataFrame) -> pd.DataFrame:
+    normalized = raw_bars.rename(columns={"code": "symbol"}).copy()
+    required = {"date", "symbol", "close"}
+    missing = required.difference(normalized.columns)
+    if missing:
+        raise ValueError(f"Baostock benchmark data is missing required columns: {sorted(missing)}")
+    benchmark = normalized.copy()
+    benchmark["date"] = pd.to_datetime(benchmark["date"], errors="raise")
+    benchmark["symbol"] = benchmark["symbol"].map(_from_baostock_symbol)
+    benchmark["close"] = pd.to_numeric(benchmark["close"], errors="raise")
+    benchmark = benchmark[["date", "symbol", "close"]]
+    benchmark = benchmark.drop_duplicates(["date"]).sort_values("date").reset_index(drop=True)
+    return benchmark
 
 
 def _to_baostock_symbol(symbol: str) -> str:

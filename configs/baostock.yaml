@@ -1,8 +1,8 @@
 data:
   # Baostock 免费真实 A 股日线默认配置。
-  # 该命令会把 daily_bars/trading_calendar/universe/dataset_manifest 统一落到 data/raw/。
+  # 该命令会把 daily_bars/benchmark/trading_calendar/universe/dataset_manifest 统一落到 data/raw/。
   daily_bar_path: data/raw/daily_bars.csv
-  benchmark_path:
+  benchmark_path: data/raw/benchmark.csv
   trading_calendar_path: data/raw/trading_calendar.csv
   universe_path: data/raw/universe.csv
   adjustment_factor_path:

@@ -149,6 +149,11 @@ def bootstrap_baostock() -> None:
         help="Optional comma-separated Baostock or project-format symbols.",
     )
     parser.add_argument(
+        "--benchmark-symbol",
+        default="000300.SH",
+        help="Optional benchmark symbol to download alongside bars, default is 000300.SH.",
+    )
+    parser.add_argument(
         "--max-workers",
         type=int,
         default=4,
@@ -172,6 +177,7 @@ def bootstrap_baostock() -> None:
         args.start_date,
         args.end_date,
         symbols=_parse_symbol_list(args.symbols),
+        benchmark_symbol=args.benchmark_symbol or None,
         max_workers=args.max_workers,
         retries=args.retries,
     )
@@ -184,10 +190,12 @@ def bootstrap_baostock() -> None:
         "max_workers": int(args.max_workers),
         "retries": int(args.retries),
         "symbols": _parse_symbol_list(args.symbols) or [],
+        "benchmark_symbol": args.benchmark_symbol or None,
     }
     write_baostock_download_bundle(
         bundle,
         output=download_paths["daily_bar_path"],
+        benchmark_output=download_paths["benchmark_path"],
         calendar_output=download_paths["trading_calendar_path"],
         universe_output=download_paths["universe_path"],
         manifest_output=download_paths["manifest_path"],
@@ -198,6 +206,8 @@ def bootstrap_baostock() -> None:
     print(f"download_start_date: {args.start_date}")
     print(f"download_end_date: {args.end_date}")
     print(f"daily_bar_path: {download_paths['daily_bar_path']}")
+    if download_paths["benchmark_path"] is not None and bundle.benchmark is not None:
+        print(f"benchmark_path: {download_paths['benchmark_path']}")
     print(f"trading_calendar_path: {download_paths['trading_calendar_path']}")
     print(f"universe_path: {download_paths['universe_path']}")
     print(f"data_manifest: {download_paths['manifest_path']}")
@@ -277,6 +287,7 @@ def main() -> None:
     bootstrap_parser.add_argument("--start-date", required=True)
     bootstrap_parser.add_argument("--end-date", required=True)
     bootstrap_parser.add_argument("--symbols", default=None)
+    bootstrap_parser.add_argument("--benchmark-symbol", default="000300.SH")
     bootstrap_parser.add_argument("--max-workers", type=int, default=4)
     bootstrap_parser.add_argument("--retries", type=int, default=3)
     bootstrap_parser.add_argument("--output-dir", default=None)
@@ -364,6 +375,7 @@ def _dispatch_bootstrap_baostock(args) -> None:
         args.start_date,
         args.end_date,
         symbols=_parse_symbol_list(args.symbols),
+        benchmark_symbol=args.benchmark_symbol or None,
         max_workers=args.max_workers,
         retries=args.retries,
     )
@@ -376,10 +388,12 @@ def _dispatch_bootstrap_baostock(args) -> None:
         "max_workers": int(args.max_workers),
         "retries": int(args.retries),
         "symbols": _parse_symbol_list(args.symbols) or [],
+        "benchmark_symbol": args.benchmark_symbol or None,
     }
     write_baostock_download_bundle(
         bundle,
         output=download_paths["daily_bar_path"],
+        benchmark_output=download_paths["benchmark_path"],
         calendar_output=download_paths["trading_calendar_path"],
         universe_output=download_paths["universe_path"],
         manifest_output=download_paths["manifest_path"],
@@ -390,6 +404,8 @@ def _dispatch_bootstrap_baostock(args) -> None:
     print(f"download_start_date: {args.start_date}")
     print(f"download_end_date: {args.end_date}")
     print(f"daily_bar_path: {download_paths['daily_bar_path']}")
+    if download_paths["benchmark_path"] is not None and bundle.benchmark is not None:
+        print(f"benchmark_path: {download_paths['benchmark_path']}")
     print(f"trading_calendar_path: {download_paths['trading_calendar_path']}")
     print(f"universe_path: {download_paths['universe_path']}")
     print(f"data_manifest: {download_paths['manifest_path']}")
@@ -477,6 +493,11 @@ def _coerce_cli_value(value: str) -> object:
 def _baostock_download_paths(config) -> dict[str, Path]:
     daily_bar_path = Path(config.data.daily_bar_path)
     base_dir = daily_bar_path.parent
+    benchmark_path = (
+        Path(config.data.benchmark_path)
+        if config.data.benchmark_path
+        else base_dir / "benchmark.csv"
+    )
     trading_calendar_path = (
         Path(config.data.trading_calendar_path)
         if config.data.trading_calendar_path
@@ -488,6 +509,7 @@ def _baostock_download_paths(config) -> dict[str, Path]:
     manifest_path = base_dir / "dataset_manifest.json"
     return {
         "daily_bar_path": daily_bar_path,
+        "benchmark_path": benchmark_path,
         "trading_calendar_path": trading_calendar_path,
         "universe_path": universe_path,
         "manifest_path": manifest_path,
