@@ -26,6 +26,11 @@ def test_parse_config_builds_typed_models() -> None:
             "report": {
                 "output_dir": "reports/test_run",
             },
+            "technical_analysis": {
+                "symbols": ["300059.SZ", "603986.SH"],
+                "buy_score_threshold": 7,
+                "hold_score_threshold": 4,
+            },
         }
     )
 
@@ -40,6 +45,9 @@ def test_parse_config_builds_typed_models() -> None:
     assert config.strategy.parameters["fast_window"] == 5
     assert config.strategy.parameters["slow_window"] == 20
     assert config.report.output_dir == "reports/test_run"
+    assert config.technical_analysis.symbols == ("300059.SZ", "603986.SH")
+    assert config.technical_analysis.buy_score_threshold == 7
+    assert config.technical_analysis.hold_score_threshold == 4
 
 
 def test_parse_config_supports_generic_strategy_parameters() -> None:

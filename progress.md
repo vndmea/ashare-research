@@ -96,6 +96,27 @@
   - 新增 `governance.md`，固化字段契约变更流程、模块边界、数据版本追溯和指标分层
   - 扩展报表层，补入持仓贡献、换手拆解和成本拆解
   - 扩展看板，增加实验结果对比视图和新报表入口
+  - 本轮本地实测并确认 `baostock` 可用，成功完成 `login()` 和历史日线查询
+  - 新增 `src/ashare_research/data/baostock.py`，封装 Baostock 日线下载、A 股正股清单获取、标准化落盘和 manifest 写出
+  - 新增 `scripts/download_baostock_data.py`，提供与现有下载脚本一致的项目落盘入口
+  - 在 `pyproject.toml` 中补入 `baostock` 依赖
+  - 新增 `tests/test_baostock_download.py`，覆盖 Baostock 符号标准化
+  - 更新 README，补充 Baostock 免费真实数据接入说明
+  - 新增 `configs/baostock.yaml`，作为 Baostock 默认研究模板
+  - 在 `src/ashare_research/cli.py` 中新增统一 `ashare` 入口和 `bootstrap-baostock` 子命令，串起下载、预检和回测
+  - 在 `pyproject.toml` 中补入 `ashare` 与 `ashare-bootstrap-baostock` 命令
+  - 通过可编辑安装验证正式命令 `ashare-bootstrap-baostock` 可用
+  - 实际运行 `ashare-bootstrap-baostock --start-date 2024-01-02 --end-date 2024-01-12 --symbols 600000.SH,000001.SZ --max-workers 1 --output-dir reports/baostock_bootstrap_test`，成功完成下载、校验和报表导出
+  - 新增 `src/ashare_research/analysis/technical.py`，正式沉淀单票技术分析评分逻辑
+  - 新增 `configs/symbol_analysis.yaml`，定义单票技术分析模板配置
+  - 在 `src/ashare_research/pipeline/run.py` 中新增单票技术分析运行与导出入口
+  - 在 `src/ashare_research/analysis/reports.py` 中新增 `symbol_technical_analysis.csv` 输出
+  - 在 `src/ashare_research/contracts/schemas.py` 中新增 `symbol_technical_analysis` 正式 contracts
+  - 在 `src/ashare_research/cli.py` 与 `pyproject.toml` 中新增 `ashare-analyze-symbols` 命令
+  - 扩展 `dashboard.py`，增加“个股”页签，消费统一 `symbol_technical_analysis.csv`
+  - 新增 `tests/test_technical_analysis.py`，并扩展 config / pipeline / contracts / report 回归测试
+  - 实际运行 `ashare-analyze-symbols --config configs/symbol_analysis.yaml --symbols 300059.SZ,603986.SH,002714.SZ --output-dir reports/symbol_analysis_test`，成功输出正式个股技术分析报告
+  - 更新 task_plan.md / findings.md，将真实 A 股日线替代样例数据标记为已完成
 - 创建/修改的文件：
   - src/ashare_research/contracts/__init__.py
   - src/ashare_research/contracts/schemas.py
@@ -131,6 +152,13 @@
   - task_plan.md
   - findings.md
   - progress.md
+  - src/ashare_research/data/baostock.py
+  - scripts/download_baostock_data.py
+  - pyproject.toml
+  - tests/test_baostock_download.py
+  - configs/baostock.yaml
+  - configs/symbol_analysis.yaml
+  - src/ashare_research/analysis/technical.py
 
 ## 测试结果
 | 测试 | 输入 | 预期结果 | 实际结果 | 状态 |
@@ -153,6 +181,11 @@
 | 治理文档落盘 | README / governance.md | 记录变更流程、模块边界、追溯与分层 | 已落地 | 通过 |
 | 持仓贡献 / 换手拆解 / 成本拆解 | pytest | 新报表生成兼容旧数据和新数据 | 46 passed | 通过 |
 | 看板实验对比 | 浏览器页面 | 参数扫描结果可排序查看 | 已接入 | 通过 |
+| Baostock 可用性验证 | `login()` + 历史日线查询 | 免费真实 A 股源可调通 | 已完成并接入下载脚本 | 通过 |
+| Baostock 下载入口 | `scripts/download_baostock_data.py --help` | 生成统一落盘文件与 manifest | 已通过帮助页与编译验证 | 通过 |
+| Baostock 符号标准化 | `normalize_baostock_symbol()` | 项目格式与 baostock 格式互转 | 已通过手工验证 | 通过 |
+| 单票技术分析回归 | `pytest` | 配置、contracts、pipeline、report、评分逻辑可稳定运行 | 22 passed | 通过 |
+| 单票技术分析正式命令 | `ashare-analyze-symbols ...` | 输出 `symbol_technical_analysis.csv` | 已通过 | 通过 |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |

@@ -62,11 +62,27 @@ class ReportConfig:
 
 
 @dataclass(frozen=True)
+class TechnicalAnalysisConfig:
+    symbols: tuple[str, ...] = ()
+    short_window: int = 20
+    medium_window: int = 60
+    long_window: int = 120
+    trend_window: int = 250
+    volume_window: int = 20
+    baseline_volume_window: int = 120
+    peak_lookback_window: int = 20
+    buy_score_threshold: int = 6
+    hold_score_threshold: int = 3
+    peak_drawdown_threshold: float = 0.15
+
+
+@dataclass(frozen=True)
 class ResearchConfig:
     data: DataConfig
     backtest: BacktestConfig
     strategy: StrategyConfig
     report: ReportConfig
+    technical_analysis: TechnicalAnalysisConfig
 
 
 def load_config(path: str | Path) -> ResearchConfig:
@@ -84,6 +100,11 @@ def parse_config(data: dict[str, Any]) -> ResearchConfig:
     backtest_section = _mapping(data.get("backtest"), section="backtest")
     strategy_section = _mapping(data.get("strategy"), section="strategy")
     report_section = _mapping(data.get("report"), section="report", allow_empty=True)
+    technical_analysis_section = _mapping(
+        data.get("technical_analysis"),
+        section="technical_analysis",
+        allow_empty=True,
+    )
 
     daily_bar_path = data_section.get("daily_bar_path")
     if not daily_bar_path:
@@ -131,6 +152,29 @@ def parse_config(data: dict[str, Any]) -> ResearchConfig:
         report=ReportConfig(
             output_dir=str(report_section.get("output_dir", "reports/example_run")),
         ),
+        technical_analysis=TechnicalAnalysisConfig(
+            symbols=tuple(_string_list(technical_analysis_section.get("symbols", ()))),
+            short_window=int(technical_analysis_section.get("short_window", 20)),
+            medium_window=int(technical_analysis_section.get("medium_window", 60)),
+            long_window=int(technical_analysis_section.get("long_window", 120)),
+            trend_window=int(technical_analysis_section.get("trend_window", 250)),
+            volume_window=int(technical_analysis_section.get("volume_window", 20)),
+            baseline_volume_window=int(
+                technical_analysis_section.get("baseline_volume_window", 120)
+            ),
+            peak_lookback_window=int(
+                technical_analysis_section.get("peak_lookback_window", 20)
+            ),
+            buy_score_threshold=int(
+                technical_analysis_section.get("buy_score_threshold", 6)
+            ),
+            hold_score_threshold=int(
+                technical_analysis_section.get("hold_score_threshold", 3)
+            ),
+            peak_drawdown_threshold=float(
+                technical_analysis_section.get("peak_drawdown_threshold", 0.15)
+            ),
+        ),
     )
 
 
@@ -151,3 +195,11 @@ def _optional_str(value: Any) -> str | None:
     if value in {None, ""}:
         return None
     return str(value)
+
+
+def _string_list(value: Any) -> list[str]:
+    if value is None or value == "":
+        return []
+    if not isinstance(value, list | tuple):
+        raise ValueError("Config field must be a list of strings")
+    return [str(item) for item in value if str(item).strip()]

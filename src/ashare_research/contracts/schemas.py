@@ -271,6 +271,39 @@ POSITION_CONTRIBUTION_SCHEMA = DatasetSchema(
     ),
 )
 
+SYMBOL_TECHNICAL_ANALYSIS_SCHEMA = DatasetSchema(
+    name="symbol_technical_analysis",
+    description="Latest single-stock technical analysis snapshot with score-based buy/hold/sell decision.",
+    primary_keys=("symbol",),
+    producer_modules=("ashare_research.analysis.technical", "ashare_research.analysis.reports"),
+    consumer_modules=("ashare_research.cli", "dashboard.py"),
+    fields=(
+        _field("date", "string", True, "Latest analysis date in YYYY-MM-DD format."),
+        _field("symbol", "string", True, "Normalized project symbol such as 603986.SH."),
+        _field("latest_close", "float", True, "Latest close used by the analysis snapshot."),
+        _field("return_20d", "float", False, "Trailing short-window return."),
+        _field("return_60d", "float", False, "Trailing medium-window return."),
+        _field("return_120d", "float", False, "Trailing long-window return."),
+        _field("return_250d", "float", False, "Trailing trend-window return."),
+        _field("max_drawdown", "float", False, "Max drawdown over the loaded history range."),
+        _field("close_vs_ma20", "float", False, "Latest close relative to short moving average."),
+        _field("close_vs_ma60", "float", False, "Latest close relative to medium moving average."),
+        _field("close_vs_ma120", "float", False, "Latest close relative to long moving average."),
+        _field("close_vs_ma250", "float", False, "Latest close relative to trend moving average."),
+        _field("vol20_vs_120", "float", False, "Recent average volume relative to baseline volume."),
+        _field("amt20_vs_120", "float", False, "Recent average turnover amount relative to baseline amount."),
+        _field("relative_strength_250d", "float", False, "Trailing relative strength versus benchmark over the trend window."),
+        _field("latest_from_peak_20d", "float", False, "Latest close relative to recent peak over the peak lookback window."),
+        _field("trend_score", "int", True, "Trend sub-score from moving averages and trailing returns."),
+        _field("volume_score", "int", True, "Volume confirmation sub-score."),
+        _field("relative_strength_score", "int", True, "Relative strength confirmation sub-score."),
+        _field("risk_penalty", "int", True, "Risk deductions from pullback and drawdown conditions."),
+        _field("total_score", "int", True, "Aggregate score used for final decision."),
+        _field("decision", "string", True, "Final score-based decision: buy, hold, or sell."),
+        _field("decision_reason", "string", True, "Semicolon-delimited reason tokens for the decision."),
+    ),
+)
+
 TURNOVER_BREAKDOWN_SCHEMA = DatasetSchema(
     name="turnover_breakdown",
     description="Daily turnover and cost breakdown derived from the equity curve.",
@@ -388,6 +421,7 @@ RUNTIME_DATASET_SCHEMAS: dict[str, DatasetSchema] = {
         EXECUTION_DIAGNOSTICS_SCHEMA,
         TRADE_LEDGER_SCHEMA,
         POSITION_CONTRIBUTION_SCHEMA,
+        SYMBOL_TECHNICAL_ANALYSIS_SCHEMA,
         TURNOVER_BREAKDOWN_SCHEMA,
     )
 }

@@ -6,6 +6,7 @@ import pytest
 from ashare_research.config import parse_config
 from ashare_research.pipeline.run import (
     load_research_inputs,
+    load_symbol_analysis_inputs,
     run_research_and_write_reports,
     summarize_research_inputs,
 )
@@ -202,6 +203,18 @@ def test_load_research_inputs_rejects_universe_pairs_missing_from_bars(tmp_path)
         match="universe contains date/symbol pairs not present in bars",
     ):
         load_research_inputs(config)
+
+
+def test_load_symbol_analysis_inputs_tolerates_missing_benchmark_dates(tmp_path) -> None:
+    paths = _write_research_input_files(
+        tmp_path,
+        benchmark_dates=pd.bdate_range("2024-01-03", periods=4),
+    )
+    config = _config_for_paths(paths)
+
+    inputs = load_symbol_analysis_inputs(config)
+
+    assert not inputs.bars.empty
 
 
 def _write_research_input_files(

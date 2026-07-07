@@ -40,6 +40,7 @@ def test_contract_registry_contains_all_official_structures() -> None:
         "strategy_attribution",
         "execution_diagnostics",
         "trade_ledger",
+        "symbol_technical_analysis",
     }
 
     assert expected_source.issubset(SOURCE_DATASET_SCHEMAS)

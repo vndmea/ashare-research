@@ -9,6 +9,7 @@ description = "Research-first A-share daily quantitative strategy scaffold."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "baostock>=0.9.2",
   "numpy>=2.0",
   "pandas>=2.2",
   "pyyaml>=6.0",
@@ -31,6 +32,9 @@ notebook = [
 [project.scripts]
 ashare-run-backtest = "ashare_research.cli:run_backtest"
 ashare-validate-data = "ashare_research.cli:validate_data"
+ashare-bootstrap-baostock = "ashare_research.cli:bootstrap_baostock"
+ashare-analyze-symbols = "ashare_research.cli:analyze_symbols"
+ashare = "ashare_research.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ashare_research"]

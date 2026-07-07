@@ -55,6 +55,8 @@ streamlit run dashboard.py
 
 The dashboard can also run the example backtest from the sidebar and then render the generated reports.
 
+If a report directory also contains `symbol_technical_analysis.csv`, the dashboard will render a dedicated single-stock technical analysis tab.
+
 ## Strategy Templates
 
 Two strategy config templates are included:
@@ -92,6 +94,23 @@ universe_rows: 3912
 
 This command reuses the same loader and contracts validation path as the research pipeline, so it is the preferred preflight check before `ashare-run-backtest`.
 
+## Analyze Specific Symbols
+
+You can run the formal single-stock technical analysis workflow with the same unified data loader and report directory conventions:
+
+```powershell
+cd E:\Code\ashare-research
+ashare-analyze-symbols --config configs/symbol_analysis.yaml
+```
+
+Override symbols from the command line when needed:
+
+```powershell
+ashare-analyze-symbols --config configs/symbol_analysis.yaml --symbols 300059.SZ,603986.SH,002714.SZ
+```
+
+This command writes `symbol_technical_analysis.csv` to the configured report directory. The current decision is a score-based technical view built from trend, volume confirmation, relative strength, and pullback risk; it is a research aid, not investment advice.
+
 ## Download Real Data
 
 You can download public A-share daily CSV files from Guidebee and convert them into the project format:
@@ -121,6 +140,28 @@ ashare-validate-data --config configs/backtest.yaml
 ```
 
 The source is useful for research, but you should still verify adjusted-price handling and corporate-action treatment before trusting any live strategy work.
+
+If you prefer a direct A-share data source, you can also use Baostock:
+
+```powershell
+cd E:\Code\ashare-research
+python scripts/download_baostock_data.py --start-date 2024-01-01 --end-date 2024-12-31
+```
+
+This script writes the same normalized project files and manifest:
+
+- `data/raw/daily_bars.csv`
+- `data/raw/trading_calendar.csv`
+- `data/raw/universe.csv`
+- `data/raw/dataset_manifest.json`
+
+Baostock is a better fit for a quick free research start, while Guidebee remains a lightweight public CSV fallback.
+
+For a one-command path that downloads Baostock data, validates it, and runs a backtest:
+
+```powershell
+ashare-bootstrap-baostock --start-date 2024-01-01 --end-date 2024-12-31
+```
 
 ## Data Contract
 

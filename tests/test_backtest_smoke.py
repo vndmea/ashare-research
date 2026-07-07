@@ -7,9 +7,11 @@ from ashare_research.analysis.reports import (
     build_industry_exposure_report,
     build_monthly_returns,
     build_rolling_metrics,
+    write_symbol_technical_analysis_report,
     write_research_report,
 )
 from ashare_research.analysis.attribution import build_strategy_attribution_report
+from ashare_research.config import TechnicalAnalysisConfig
 from ashare_research.backtest.engine import run_close_to_close_backtest
 from ashare_research.risk.position_sizing import (
     build_target_positions,
@@ -127,6 +129,23 @@ def test_report_exports(tmp_path) -> None:
         bars=bars,
         benchmark_returns=benchmark_returns,
     )
+    symbol_technical = write_symbol_technical_analysis_report(
+        tmp_path,
+        pd.DataFrame(
+            {
+                "date": list(pd.bdate_range("2024-01-01", periods=260)) * 2,
+                "symbol": ["000001.SZ"] * 260 + ["600000.SH"] * 260,
+                "close": [10 + index * 0.05 for index in range(260)]
+                + [30 - index * 0.03 for index in range(260)],
+                "volume": [1_000_000 + index * 1_000 for index in range(260)]
+                + [2_000_000 - index * 500 for index in range(260)],
+                "amount": [10_000_000 + index * 100_000 for index in range(260)]
+                + [60_000_000 - index * 80_000 for index in range(260)],
+            }
+        ),
+        TechnicalAnalysisConfig(symbols=("000001.SZ", "600000.SH")),
+        benchmark_returns=benchmark_returns,
+    )
 
     assert not monthly_returns.empty
     assert not drawdowns.empty
@@ -147,6 +166,7 @@ def test_report_exports(tmp_path) -> None:
     assert paths.positions.exists()
     assert paths.execution_diagnostics.exists()
     assert paths.trade_ledger.exists()
+    assert symbol_technical.summary.exists()
 
 
 def test_equal_weight_positions_prefers_stronger_signals() -> None:

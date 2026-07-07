@@ -1,15 +1,15 @@
 data:
-  # 推荐默认真实数据源：Baostock 免费 A 股日线。
-  # 如果你暂时只想跑项目自带样例数据，可以把 daily_bar_path 指向 data/raw/daily_bars.csv。
+  # Baostock 免费真实 A 股日线默认配置。
+  # 该命令会把 daily_bars/trading_calendar/universe/dataset_manifest 统一落到 data/raw/。
   daily_bar_path: data/raw/daily_bars.csv
-  benchmark_path: data/raw/benchmark.csv
+  benchmark_path:
   trading_calendar_path: data/raw/trading_calendar.csv
   universe_path: data/raw/universe.csv
   adjustment_factor_path:
   price_adjustment: none
 
 backtest:
-  start_date: "2020-01-01"
+  start_date: "2024-01-01"
   end_date: "2024-12-31"
   initial_cash: 1000000
   commission_rate: 0.0003
@@ -32,4 +32,4 @@ strategy:
   slow_window: 60
 
 report:
-  output_dir: reports/example_run
+  output_dir: reports/baostock_run

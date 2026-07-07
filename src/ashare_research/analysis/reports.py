@@ -8,6 +8,8 @@ import pandas as pd
 
 from ashare_research.analysis.attribution import build_strategy_attribution_report
 from ashare_research.analysis.metrics import PerformanceMetrics
+from ashare_research.analysis.technical import build_symbol_technical_analysis_report
+from ashare_research.config import TechnicalAnalysisConfig
 from ashare_research.backtest.accounting import daily_symbol_returns
 
 ROLLING_WINDOWS = (20, 60)
@@ -27,6 +29,11 @@ class ReportPaths:
     trade_ledger: Path
     position_contribution: Path
     turnover_breakdown: Path
+
+
+@dataclass(frozen=True)
+class SymbolTechnicalReportPaths:
+    summary: Path
 
 
 def build_drawdown_report(equity_curve: pd.DataFrame) -> pd.DataFrame:
@@ -270,6 +277,23 @@ def write_research_report(
         position_contribution=position_contribution_path,
         turnover_breakdown=turnover_breakdown_path,
     )
+
+
+def write_symbol_technical_analysis_report(
+    output_dir: str | Path,
+    bars: pd.DataFrame,
+    technical_config: TechnicalAnalysisConfig,
+    benchmark_returns: pd.DataFrame | None = None,
+) -> SymbolTechnicalReportPaths:
+    report_dir = Path(output_dir)
+    report_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = report_dir / "symbol_technical_analysis.csv"
+    build_symbol_technical_analysis_report(
+        bars,
+        technical_config,
+        benchmark_returns=benchmark_returns,
+    ).to_csv(summary_path, index=False)
+    return SymbolTechnicalReportPaths(summary=summary_path)
 
 
 def _equity_curve_with_benchmark(

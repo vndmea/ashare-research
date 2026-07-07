@@ -1,0 +1,35 @@
+data:
+  daily_bar_path: data/raw/daily_bars.csv
+  benchmark_path:
+  trading_calendar_path: data/raw/trading_calendar.csv
+  universe_path: data/raw/universe.csv
+  adjustment_factor_path:
+  price_adjustment: none
+
+backtest:
+  start_date: "2024-01-01"
+  end_date: "2026-12-31"
+
+strategy:
+  name: moving_average_crossover
+  fast_window: 20
+  slow_window: 60
+
+report:
+  output_dir: reports/symbol_analysis
+
+technical_analysis:
+  symbols:
+    - 300059.SZ
+    - 603986.SH
+    - 002714.SZ
+  short_window: 20
+  medium_window: 60
+  long_window: 120
+  trend_window: 250
+  volume_window: 20
+  baseline_volume_window: 120
+  peak_lookback_window: 20
+  buy_score_threshold: 6
+  hold_score_threshold: 3
+  peak_drawdown_threshold: 0.15

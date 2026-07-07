@@ -17,6 +17,7 @@ CONFIG_SECTION_LABELS = {
     "backtest": "回测",
     "strategy": "策略",
     "report": "报告",
+    "technical_analysis": "个股分析",
 }
 CONFIG_FIELD_LABELS = {
     "daily_bar_path": "日线数据路径",
@@ -48,6 +49,17 @@ CONFIG_FIELD_LABELS = {
     "lookback_window": "回看窗口",
     "min_positive_return": "最小正收益阈值",
     "output_dir": "输出目录",
+    "symbols": "分析证券",
+    "short_window": "短期窗口",
+    "medium_window": "中期窗口",
+    "long_window": "长期窗口",
+    "trend_window": "趋势窗口",
+    "volume_window": "量能窗口",
+    "baseline_volume_window": "量能基准窗口",
+    "peak_lookback_window": "近期高点回看窗口",
+    "buy_score_threshold": "偏买入阈值",
+    "hold_score_threshold": "偏持有阈值",
+    "peak_drawdown_threshold": "高位回撤阈值",
 }
 CONFIG_VALUE_LABELS = {
     "none": "不复权",
@@ -76,6 +88,7 @@ FILE_LABELS = {
     "turnover_breakdown": "换手拆解",
     "parameter_sweep": "参数扫描汇总",
     "parameter_sweep_manifest": "参数扫描清单",
+    "symbol_technical_analysis": "个股技术分析",
 }
 COLUMN_LABELS = {
     "date": "日期",
@@ -135,6 +148,32 @@ COLUMN_LABELS = {
     "total_cost": "总成本",
     "name": "文件名称",
     "path": "文件路径",
+    "latest_close": "最新收盘价",
+    "return_20d": "20日收益",
+    "return_60d": "60日收益",
+    "return_120d": "120日收益",
+    "return_250d": "250日收益",
+    "close_vs_ma20": "相对20日均线",
+    "close_vs_ma60": "相对60日均线",
+    "close_vs_ma120": "相对120日均线",
+    "close_vs_ma250": "相对250日均线",
+    "vol20_vs_120": "20日量能相对120日",
+    "amt20_vs_120": "20日成交额相对120日",
+    "relative_strength_250d": "250日相对强弱",
+    "latest_from_peak_20d": "相对20日高点",
+    "trend_score": "趋势分",
+    "volume_score": "量能分",
+    "relative_strength_score": "相对强弱分",
+    "risk_penalty": "风险扣分",
+    "total_score": "总分",
+    "decision": "结论",
+    "decision_reason": "结论原因",
+    "max_drawdown": "最大回撤",
+}
+DECISION_VALUE_LABELS = {
+    "buy": "偏买入",
+    "hold": "偏持有",
+    "sell": "偏卖出",
 }
 
 
@@ -170,8 +209,8 @@ def main() -> None:
 
     _render_metrics(report["summary"])
 
-    tab_equity, tab_risk, tab_monthly, tab_positions, tab_exposure, tab_execution, tab_experiments, tab_files = st.tabs(
-        ["净值", "风险", "月度", "持仓", "暴露", "执行", "实验", "文件"]
+    tab_equity, tab_risk, tab_monthly, tab_positions, tab_exposure, tab_execution, tab_symbols, tab_experiments, tab_files = st.tabs(
+        ["净值", "风险", "月度", "持仓", "暴露", "执行", "个股", "实验", "文件"]
     )
 
     with tab_equity:
@@ -195,6 +234,9 @@ def main() -> None:
 
     with tab_execution:
         _render_execution_section(report["execution_diagnostics"], report["trade_ledger"])
+
+    with tab_symbols:
+        _render_symbol_section(report["symbol_technical_analysis"])
 
     with tab_experiments:
         _render_experiment_section(report["parameter_sweep"], report["parameter_sweep_manifest"])
@@ -226,6 +268,7 @@ def _load_report_bundle(output_dir: str) -> dict[str, Any] | None:
     trade_ledger_path = report_dir / "trade_ledger.csv"
     position_contribution_path = report_dir / "position_contribution.csv"
     turnover_breakdown_path = report_dir / "turnover_breakdown.csv"
+    symbol_technical_analysis_path = report_dir / "symbol_technical_analysis.csv"
     parameter_sweep_path = report_dir / "parameter_sweep.csv"
     parameter_sweep_manifest_path = report_dir / "parameter_sweep_manifest.json"
 
@@ -278,6 +321,11 @@ def _load_report_bundle(output_dir: str) -> dict[str, Any] | None:
         if turnover_breakdown_path.exists()
         else pd.DataFrame()
     )
+    symbol_technical_analysis = (
+        pd.read_csv(symbol_technical_analysis_path)
+        if symbol_technical_analysis_path.exists()
+        else pd.DataFrame()
+    )
     parameter_sweep = pd.read_csv(parameter_sweep_path) if parameter_sweep_path.exists() else pd.DataFrame()
     parameter_sweep_manifest = (
         parameter_sweep_manifest_path.read_text(encoding="utf-8")
@@ -298,6 +346,7 @@ def _load_report_bundle(output_dir: str) -> dict[str, Any] | None:
         "trade_ledger": trade_ledger,
         "position_contribution": position_contribution,
         "turnover_breakdown": turnover_breakdown,
+        "symbol_technical_analysis": symbol_technical_analysis,
         "parameter_sweep": parameter_sweep,
         "parameter_sweep_manifest": parameter_sweep_manifest,
         "paths": {
@@ -313,6 +362,7 @@ def _load_report_bundle(output_dir: str) -> dict[str, Any] | None:
             "trade_ledger": trade_ledger_path,
             "position_contribution": position_contribution_path,
             "turnover_breakdown": turnover_breakdown_path,
+            "symbol_technical_analysis": symbol_technical_analysis_path,
             "parameter_sweep": parameter_sweep_path,
             "parameter_sweep_manifest": parameter_sweep_manifest_path,
         },
@@ -597,6 +647,31 @@ def _render_experiment_section(
         st.code(parameter_sweep_manifest, language="json")
 
 
+def _render_symbol_section(symbol_technical_analysis: pd.DataFrame) -> None:
+    if symbol_technical_analysis.empty:
+        st.info("暂无个股技术分析报告。")
+        return
+
+    st.subheader("个股技术分析")
+    ranked = symbol_technical_analysis.sort_values(
+        ["total_score", "symbol"],
+        ascending=[False, True],
+    ).reset_index(drop=True)
+    top_metrics = st.columns(3)
+    top_metrics[0].metric("分析证券数", _format_integer(len(ranked)))
+    top_metrics[1].metric("最高分", _format_integer(ranked["total_score"].max()))
+    top_metrics[2].metric("最低分", _format_integer(ranked["total_score"].min()))
+    chart_columns = [
+        column
+        for column in ["total_score", "trend_score", "volume_score", "risk_penalty"]
+        if column in ranked.columns
+    ]
+    if chart_columns:
+        chart = _with_chart_index(ranked, "symbol")[chart_columns].rename(columns=_display_label)
+        st.bar_chart(chart)
+    st.dataframe(_localize_dataframe(ranked), use_container_width=True, hide_index=True)
+
+
 def _render_files_section(paths: dict[str, Path]) -> None:
     st.subheader("报告文件")
     file_rows = [{"name": FILE_LABELS.get(key, key), "path": str(value)} for key, value in paths.items()]
@@ -633,6 +708,9 @@ def _config_to_dict(config: Any) -> dict[str, Any]:
         CONFIG_SECTION_LABELS["backtest"]: _localize_config_section(config.backtest.__dict__),
         CONFIG_SECTION_LABELS["strategy"]: _localize_config_section(config.strategy.__dict__),
         CONFIG_SECTION_LABELS["report"]: _localize_config_section(config.report.__dict__),
+        CONFIG_SECTION_LABELS["technical_analysis"]: _localize_config_section(
+            config.technical_analysis.__dict__
+        ),
     }
 
 
@@ -646,6 +724,8 @@ def _localize_config_section(section: dict[str, Any]) -> dict[str, Any]:
 def _localize_config_value(value: Any) -> Any:
     if isinstance(value, bool):
         return "是" if value else "否"
+    if isinstance(value, tuple):
+        return [str(item) for item in value]
     if isinstance(value, dict):
         return {
             CONFIG_FIELD_LABELS.get(key, key): _localize_config_value(inner_value)
@@ -659,6 +739,10 @@ def _localize_config_value(value: Any) -> Any:
 def _localize_dataframe(frame: pd.DataFrame) -> pd.DataFrame:
     localized = frame.copy()
     localized.rename(columns=_display_label, inplace=True)
+    if "结论" in localized.columns:
+        localized["结论"] = localized["结论"].map(
+            lambda value: DECISION_VALUE_LABELS.get(value, value)
+        )
     return localized
 
 
@@ -671,6 +755,9 @@ def _display_label(column: str) -> str:
     if column.startswith("rolling_") and column.endswith("_volatility"):
         window = column.removeprefix("rolling_").removesuffix("_volatility")
         return f"滚动{window}波动"
+    if column.startswith("return_") and column.endswith("d"):
+        window = column.removeprefix("return_").removesuffix("d")
+        return f"{window}日收益"
     return column
 
 
