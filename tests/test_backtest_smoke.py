@@ -9,6 +9,7 @@ from ashare_research.analysis.reports import (
     build_rolling_metrics,
     write_research_report,
 )
+from ashare_research.analysis.attribution import build_strategy_attribution_report
 from ashare_research.backtest.engine import run_close_to_close_backtest
 from ashare_research.risk.position_sizing import (
     build_target_positions,
@@ -112,6 +113,7 @@ def test_report_exports(tmp_path) -> None:
     drawdowns = build_drawdown_report(equity_curve)
     rolling_metrics = build_rolling_metrics(equity_curve, benchmark_returns, windows=(2,))
     industry_exposure = build_industry_exposure_report(positions, bars)
+    strategy_attribution = build_strategy_attribution_report(positions, bars, equity_curve)
     paths = write_research_report(
         tmp_path,
         equity_curve,
@@ -125,8 +127,10 @@ def test_report_exports(tmp_path) -> None:
     assert not drawdowns.empty
     assert not rolling_metrics.empty
     assert not industry_exposure.empty
+    assert not strategy_attribution.empty
     assert "rolling_2d_return" in rolling_metrics.columns
     assert industry_exposure["group_name"].tolist() == ["Broker", "Bank"]
+    assert "source" in strategy_attribution.columns
     assert drawdowns["drawdown"].min() <= 0.0
     assert paths.summary.exists()
     assert paths.equity_curve.exists()
@@ -134,6 +138,7 @@ def test_report_exports(tmp_path) -> None:
     assert paths.rolling_metrics.exists()
     assert paths.monthly_returns.exists()
     assert paths.industry_exposure.exists()
+    assert paths.strategy_attribution.exists()
     assert paths.positions.exists()
 
 

@@ -4,12 +4,14 @@ from pathlib import Path
 
 import pandas as pd
 
+from ashare_research.contracts.schemas import TRADING_CALENDAR_SOURCE_SCHEMA
+
 
 def load_trading_calendar(path: str | Path) -> pd.DatetimeIndex:
     """Load a trading calendar CSV with a `date` column."""
     calendar_path = Path(path)
     calendar = pd.read_csv(calendar_path, parse_dates=["date"])
-    if "date" not in calendar.columns:
+    if "date" not in TRADING_CALENDAR_SOURCE_SCHEMA.required_field_set.intersection(calendar.columns):
         raise ValueError("Trading calendar is missing a date column.")
     dates = pd.DatetimeIndex(calendar["date"].drop_duplicates().sort_values())
     if dates.empty:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from ashare_research.factors.technical import moving_average
+from ashare_research.strategies.registry import registry
 
 
 def moving_average_crossover_signals(
@@ -30,3 +31,17 @@ def moving_average_crossover_signals(
         .sort_values(["date", "symbol"])
         .reset_index(drop=True)
     )
+
+
+def run_moving_average_crossover(
+    bars: pd.DataFrame,
+    config: dict[str, object],
+) -> pd.DataFrame:
+    return moving_average_crossover_signals(
+        bars,
+        fast_window=int(config.get("fast_window", 20)),
+        slow_window=int(config.get("slow_window", 60)),
+    )
+
+
+registry.register("moving_average_crossover", run_moving_average_crossover)

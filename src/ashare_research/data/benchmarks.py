@@ -4,7 +4,9 @@ from pathlib import Path
 
 import pandas as pd
 
-REQUIRED_BENCHMARK_COLUMNS = {"date", "close"}
+from ashare_research.contracts.schemas import BENCHMARK_SOURCE_SCHEMA
+
+REQUIRED_BENCHMARK_COLUMNS = BENCHMARK_SOURCE_SCHEMA.required_field_set
 
 
 def load_benchmark_returns(

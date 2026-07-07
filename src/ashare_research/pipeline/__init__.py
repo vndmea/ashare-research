@@ -1,0 +1,2 @@
+"""Shared research pipeline orchestration."""
+

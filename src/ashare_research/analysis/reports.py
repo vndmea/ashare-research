@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from ashare_research.analysis.attribution import build_strategy_attribution_report
 from ashare_research.analysis.metrics import PerformanceMetrics
 
 ROLLING_WINDOWS = (20, 60)
@@ -19,6 +20,7 @@ class ReportPaths:
     rolling_metrics: Path
     monthly_returns: Path
     industry_exposure: Path
+    strategy_attribution: Path
     positions: Path
 
 
@@ -157,6 +159,7 @@ def write_research_report(
     rolling_metrics_path = report_dir / "rolling_metrics.csv"
     monthly_returns_path = report_dir / "monthly_returns.csv"
     industry_exposure_path = report_dir / "industry_exposure.csv"
+    strategy_attribution_path = report_dir / "strategy_attribution.csv"
     positions_path = report_dir / "positions.csv"
 
     pd.DataFrame([metrics.to_dict()]).to_csv(summary_path, index=False)
@@ -174,6 +177,11 @@ def write_research_report(
         industry_exposure_path,
         index=False,
     )
+    build_strategy_attribution_report(
+        positions,
+        bars if bars is not None else pd.DataFrame(),
+        equity_curve,
+    ).to_csv(strategy_attribution_path, index=False)
     positions.to_csv(positions_path, index=False)
 
     return ReportPaths(
@@ -183,6 +191,7 @@ def write_research_report(
         rolling_metrics=rolling_metrics_path,
         monthly_returns=monthly_returns_path,
         industry_exposure=industry_exposure_path,
+        strategy_attribution=strategy_attribution_path,
         positions=positions_path,
     )
 

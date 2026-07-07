@@ -4,33 +4,18 @@ from pathlib import Path
 
 import pandas as pd
 
+from ashare_research.contracts.schemas import BARS_SCHEMA, DAILY_BARS_SOURCE_SCHEMA
 from ashare_research.data.adjustments import (
     apply_price_adjustment,
     load_adjustment_factors,
     merge_adjustment_factors,
 )
 
-REQUIRED_DAILY_BAR_COLUMNS = {
-    "date",
-    "symbol",
-    "open",
-    "high",
-    "low",
-    "close",
-    "volume",
-}
+REQUIRED_DAILY_BAR_COLUMNS = DAILY_BARS_SOURCE_SCHEMA.required_field_set
 
-OPTIONAL_DAILY_BAR_COLUMNS = {
-    "amount",
-    "adj_factor",
-    "is_suspended",
-    "limit_up",
-    "limit_down",
-    "tradable",
-    "st_status",
-    "industry",
-    "sector",
-}
+OPTIONAL_DAILY_BAR_COLUMNS = BARS_SCHEMA.optional_field_set.difference(
+    {"raw_open", "raw_high", "raw_low", "raw_close"}
+)
 
 BOOLEAN_DAILY_BAR_COLUMNS = {
     "is_suspended",

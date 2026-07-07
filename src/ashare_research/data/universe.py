@@ -4,12 +4,14 @@ from pathlib import Path
 
 import pandas as pd
 
+from ashare_research.contracts.schemas import UNIVERSE_SOURCE_SCHEMA
+
 
 def load_universe_snapshot(path: str | Path) -> pd.DataFrame:
     """Load a date-aware universe snapshot with `date` and `symbol` columns."""
     snapshot_path = Path(path)
     snapshot = pd.read_csv(snapshot_path, parse_dates=["date"])
-    required = {"date", "symbol"}
+    required = UNIVERSE_SOURCE_SCHEMA.required_field_set
     missing = required.difference(snapshot.columns)
     if missing:
         raise ValueError(f"Universe snapshot is missing required columns: {sorted(missing)}")
@@ -21,7 +23,7 @@ def load_universe_snapshot(path: str | Path) -> pd.DataFrame:
 
 def universe_from_bars(bars: pd.DataFrame) -> pd.DataFrame:
     """Infer a daily universe snapshot from the symbols present in the bar data."""
-    required = {"date", "symbol"}
+    required = UNIVERSE_SOURCE_SCHEMA.required_field_set
     missing = required.difference(bars.columns)
     if missing:
         raise ValueError(
